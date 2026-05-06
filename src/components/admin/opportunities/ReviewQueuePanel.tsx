@@ -22,14 +22,31 @@ type QueueRow = {
   status: "pending" | "approved" | "rejected" | "duplicate";
   discovered_at: string;
   notes: string | null;
+  role_title: string | null;
+  role_type: string | null;
+  location: string | null;
+  pqe_min: number | null;
+  pqe_max: number | null;
+  eligibility_india: "eligible" | "ambiguous" | "ineligible" | "unknown";
+  eligibility_reason: string | null;
+  eligibility_confidence: number | null;
+  lifecycle_status: "active" | "stale" | "expired";
+  consecutive_misses: number;
 };
 
 type SourceRow = {
   id: string;
-  firm_name: string;
+  name: string | null;
+  firm_name: string | null;
   url: string;
   active: boolean;
+  source_type: string;
+  tier: string;
+  country: string;
+  scrape_frequency: string;
+  pipeline_status: string;
   last_scraped_at: string | null;
+  last_success_at: string | null;
   last_status: string | null;
   last_error: string | null;
   scrape_count: number;
@@ -37,12 +54,15 @@ type SourceRow = {
 
 const TIERS = ["tier_1", "tier_2", "tier_3", "boutique", "in_house", "psu", "big_4", "other"];
 
+type QueueTab = "eligible" | "ambiguous" | "ineligible" | "sources";
+
 export default function ReviewQueuePanel({ userId }: { userId: string }) {
-  const [tab, setTab] = useState<"queue" | "sources">("queue");
+  const [tab, setTab] = useState<QueueTab>("eligible");
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [sources, setSources] = useState<SourceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [scrapingId, setScrapingId] = useState<string | null>(null);
+  const [tickRunning, setTickRunning] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<QueueRow | null>(null);
 
