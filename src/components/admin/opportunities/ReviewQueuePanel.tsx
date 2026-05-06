@@ -346,13 +346,13 @@ function ReviewDialog({
       const e = row.ai_extracted || {};
       setFields({
         firm_name: row.source_firm ?? "",
-        role: e.role ?? row.source_title ?? "",
-        opportunity_type: e.opportunity_type ?? "internship",
-        application_mode: e.application_mode ?? (e.apply_url || row.source_url ? "external_url" : "email"),
+        role: row.role_title ?? e.role ?? row.source_title ?? "",
+        opportunity_type: row.role_type === "internship" ? "internship" : (e.opportunity_type ?? "job"),
+        application_mode: e.application_mode ?? "external_url",
         application_email: e.application_email ?? "",
         application_url: e.apply_url ?? row.source_url ?? "",
-        location: e.location ?? "",
-        eligibility: e.eligibility ?? "",
+        location: row.location ?? e.location ?? "",
+        eligibility: row.eligibility_reason ?? e.eligibility ?? "",
         stipend: e.stipend ?? "",
         description: e.description ?? "",
         tier: "",
