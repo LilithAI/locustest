@@ -58,6 +58,50 @@ const TIERS = ["tier_1", "tier_2", "tier_3", "boutique", "in_house", "psu", "big
 
 type QueueTab = "eligible" | "ambiguous" | "ineligible" | "sources";
 
+// Build an in-memory Vacancy object from a queue row (+ optional edits) so the
+// real public <VacancyCard> can render exactly how it will appear once promoted.
+export function buildPreviewVacancy(row: QueueRow, fields?: Record<string, any>): Vacancy {
+  const e = (row.ai_extracted || {}) as Record<string, any>;
+  const f = fields || {};
+  const description: string =
+    (f.description as string | undefined) ??
+    (e.description_full as string | undefined) ??
+    (e.description as string | undefined) ??
+    (e.description_excerpt as string | undefined) ??
+    row.eligibility_reason ??
+    "";
+  const mode = (f.application_mode ?? e.application_mode ?? "external_url") === "email" ? "email" : "external_url";
+  const now = new Date();
+  const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const tierVal = (f.tier ?? "") as string;
+  const tier = (tierVal && tierVal !== "none" ? tierVal : null) as VacancyTier | null;
+  return {
+    id: `preview-${row.id}`,
+    firm_name: (f.firm_name as string) || row.source_firm || "Unknown Firm",
+    role: (f.role as string) || row.role_title || row.source_title || "(Untitled role)",
+    opportunity_type: (f.opportunity_type as any) || (row.role_type === "internship" ? "internship" : "job"),
+    location: (f.location as string) || row.location || (e.location as string) || null,
+    application_mode: mode,
+    application_email: mode === "email" ? ((f.application_email as string) || null) : null,
+    application_url: mode === "external_url"
+      ? ((f.application_url as string) || (e.apply_url as string) || row.source_url)
+      : null,
+    tier,
+    practice_area: (f.practice_area as string) || (e.practice_area as string) || null,
+    eligibility: (f.eligibility as string) || row.eligibility_reason || null,
+    stipend: (f.stipend as string) || (e.stipend as string) || null,
+    description: description || null,
+    task_brief: null,
+    source_credit: `Auto-aggregated from ${row.source_firm ?? "source"} careers page`,
+    posted_at: now.toISOString(),
+    expires_at: expires.toISOString(),
+    status: "live",
+    created_by: "preview",
+    created_at: now.toISOString(),
+    updated_at: now.toISOString(),
+  };
+}
+
 export default function ReviewQueuePanel({ userId }: { userId: string }) {
   const [tab, setTab] = useState<QueueTab>("eligible");
   const [rows, setRows] = useState<QueueRow[]>([]);
