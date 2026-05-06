@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Loader2, RefreshCw, ExternalLink, Check, X, AlertTriangle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, RefreshCw, ExternalLink, Check, X, AlertTriangle, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import VacancyCard from "@/components/vacancies/VacancyCard";
+import type { Vacancy, VacancyTier } from "@/lib/vacancies";
 
 type QueueRow = {
   id: string;
@@ -56,6 +58,50 @@ const TIERS = ["tier_1", "tier_2", "tier_3", "boutique", "in_house", "psu", "big
 
 type QueueTab = "eligible" | "ambiguous" | "ineligible" | "sources";
 
+// Build an in-memory Vacancy object from a queue row (+ optional edits) so the
+// real public <VacancyCard> can render exactly how it will appear once promoted.
+export function buildPreviewVacancy(row: QueueRow, fields?: Record<string, any>): Vacancy {
+  const e = (row.ai_extracted || {}) as Record<string, any>;
+  const f = fields || {};
+  const description: string =
+    (f.description as string | undefined) ??
+    (e.description_full as string | undefined) ??
+    (e.description as string | undefined) ??
+    (e.description_excerpt as string | undefined) ??
+    row.eligibility_reason ??
+    "";
+  const mode = (f.application_mode ?? e.application_mode ?? "external_url") === "email" ? "email" : "external_url";
+  const now = new Date();
+  const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const tierVal = (f.tier ?? "") as string;
+  const tier = (tierVal && tierVal !== "none" ? tierVal : null) as VacancyTier | null;
+  return {
+    id: `preview-${row.id}`,
+    firm_name: (f.firm_name as string) || row.source_firm || "Unknown Firm",
+    role: (f.role as string) || row.role_title || row.source_title || "(Untitled role)",
+    opportunity_type: (f.opportunity_type as any) || (row.role_type === "internship" ? "internship" : "job"),
+    location: (f.location as string) || row.location || (e.location as string) || null,
+    application_mode: mode,
+    application_email: mode === "email" ? ((f.application_email as string) || null) : null,
+    application_url: mode === "external_url"
+      ? ((f.application_url as string) || (e.apply_url as string) || row.source_url)
+      : null,
+    tier,
+    practice_area: (f.practice_area as string) || (e.practice_area as string) || null,
+    eligibility: (f.eligibility as string) || row.eligibility_reason || null,
+    stipend: (f.stipend as string) || (e.stipend as string) || null,
+    description: description || null,
+    task_brief: null,
+    source_credit: `Auto-aggregated from ${row.source_firm ?? "source"} careers page`,
+    posted_at: now.toISOString(),
+    expires_at: expires.toISOString(),
+    status: "live",
+    created_by: "preview",
+    created_at: now.toISOString(),
+    updated_at: now.toISOString(),
+  };
+}
+
 export default function ReviewQueuePanel({ userId }: { userId: string }) {
   const [tab, setTab] = useState<QueueTab>("eligible");
   const [rows, setRows] = useState<QueueRow[]>([]);
@@ -65,6 +111,7 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
   const [tickRunning, setTickRunning] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<QueueRow | null>(null);
+  const [previewing, setPreviewing] = useState<QueueRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -264,6 +311,9 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
                         <ExternalLink size={14} />
                       </a>
                     </Button>
+                    <Button size="sm" variant="outline" onClick={() => setPreviewing(r)} title="Preview as it will look on Opportunities">
+                      <Eye size={14} className="mr-1" /> Preview
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => reject(r)}>
                       <X size={14} className="mr-1" /> Reject
                     </Button>
@@ -333,7 +383,54 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
         row={editing}
         onApprove={approve}
       />
+
+      <LivePreviewDialog
+        row={previewing}
+        onOpenChange={(v) => { if (!v) setPreviewing(null); }}
+        onEdit={(r) => { setPreviewing(null); setEditing(r); setOpen(true); }}
+      />
     </div>
+  );
+}
+
+function LivePreviewDialog({
+  row, onOpenChange, onEdit,
+}: {
+  row: QueueRow | null;
+  onOpenChange: (v: boolean) => void;
+  onEdit: (r: QueueRow) => void;
+}) {
+  const vacancy = useMemo(() => (row ? buildPreviewVacancy(row) : null), [row]);
+  return (
+    <Dialog open={!!row} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto border-2 border-foreground">
+        <DialogHeader>
+          <DialogTitle className="font-heading">Preview — live card</DialogTitle>
+          <DialogDescription>
+            This is exactly how the vacancy will appear on the public Opportunities page once promoted.
+            Action buttons (Apply / share) are inert here.
+          </DialogDescription>
+        </DialogHeader>
+
+        {vacancy && (
+          <div className="bg-muted/30 border-2 border-dashed border-border rounded p-4">
+            <VacancyCard vacancy={vacancy} archived={false} application={null} />
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          {row && (
+            <Button
+              onClick={() => onEdit(row)}
+              className="font-bold border-2 border-foreground shadow-[3px_3px_0_0_hsl(var(--foreground))]"
+            >
+              <Check size={14} className="mr-1" /> Edit & promote
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -360,7 +457,7 @@ function ReviewDialog({
         location: row.location ?? e.location ?? "",
         eligibility: row.eligibility_reason ?? e.eligibility ?? "",
         stipend: e.stipend ?? "",
-        description: e.description ?? "",
+        description: e.description_full ?? e.description ?? e.description_excerpt ?? "",
         tier: "",
         practice_area: "",
       });
@@ -372,7 +469,7 @@ function ReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto border-2 border-foreground">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto border-2 border-foreground">
         <DialogHeader>
           <DialogTitle className="font-heading">Review & promote</DialogTitle>
           <DialogDescription>
@@ -455,15 +552,28 @@ function ReviewDialog({
             </div>
             <div>
               <Label>Description</Label>
-              <Textarea rows={3} value={fields.description ?? ""} onChange={(e) => u("description", e.target.value)} />
+              <Textarea rows={10} value={fields.description ?? ""} onChange={(e) => u("description", e.target.value)} />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {(fields.description ?? "").length} chars · aim for 800–2500 for a meaningful preview.
+              </p>
             </div>
           </div>
 
-          <div>
-            <Label className="font-mono text-[10px] uppercase tracking-widest">Raw scraped markdown</Label>
-            <div className="mt-1 max-h-[60vh] overflow-y-auto border-2 border-border rounded p-3 text-xs whitespace-pre-wrap font-mono bg-muted/30">
-              {row.raw_text || "(empty)"}
+          <div className="space-y-3">
+            <div>
+              <Label className="font-mono text-[10px] uppercase tracking-widest">Live preview</Label>
+              <div className="mt-1 bg-muted/30 border-2 border-dashed border-border rounded p-3">
+                <VacancyCard vacancy={buildPreviewVacancy(row, fields)} archived={false} application={null} />
+              </div>
             </div>
+            <details className="group">
+              <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
+                Raw scraped markdown ▾
+              </summary>
+              <div className="mt-1 max-h-[40vh] overflow-y-auto border-2 border-border rounded p-3 text-xs whitespace-pre-wrap font-mono bg-muted/30">
+                {row.raw_text || "(empty)"}
+              </div>
+            </details>
           </div>
         </div>
 

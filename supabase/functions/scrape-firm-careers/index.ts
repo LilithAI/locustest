@@ -24,7 +24,8 @@ RULES:
 - Return [] if there are no concrete openings.
 - role_type values: lateral_hire, internship, retainership, graduate_trainee, fellowship, consultant, support_staff, other.
 - application_mode values: external_url, email, onsite_form, ats_redirect, unclear.
-- description_excerpt: ≤500 chars summary.
+- description_full: a DETAILED description (800-2500 chars) summarising the role. Cover, when present in the source: what the role is about, key responsibilities, required qualifications / PQE / skills, eligibility nuances, location/remote setup, compensation/perks, application instructions, and any deadlines. Use short paragraphs and preserve bullet points (use "- " prefix). Do NOT invent facts. If the source is thin, write a shorter honest summary rather than padding.
+- description_excerpt: a tight ≤220 char one-line teaser for list cards.
 `;
 
 const ELIGIBILITY_PROMPT = `You decide if a legal vacancy is open to Indian law students/lawyers.
@@ -85,6 +86,7 @@ interface ExtractedVacancy {
   source_posted_date: string | null;
   source_deadline: string | null;
   description_excerpt: string | null;
+  description_full: string | null;
 }
 
 async function aiCall(body: unknown, lovableKey: string): Promise<any> {
@@ -101,7 +103,7 @@ async function aiCall(body: unknown, lovableKey: string): Promise<any> {
 }
 
 async function aiExtract(markdown: string, sourceName: string, lovableKey: string): Promise<ExtractedVacancy[]> {
-  const truncated = markdown.length > 14000 ? markdown.slice(0, 14000) : markdown;
+  const truncated = markdown.length > 24000 ? markdown.slice(0, 24000) : markdown;
   const data = await aiCall({
     model: MODEL,
     messages: [
@@ -134,6 +136,7 @@ async function aiExtract(markdown: string, sourceName: string, lovableKey: strin
                   source_posted_date: { type: ["string", "null"] },
                   source_deadline: { type: ["string", "null"] },
                   description_excerpt: { type: ["string", "null"] },
+                  description_full: { type: ["string", "null"] },
                 },
                 required: ["role_title"],
                 additionalProperties: false,
@@ -359,7 +362,7 @@ serve(async (req) => {
         application_subject: x.application_subject,
         source_posted_date: safeDate(x.source_posted_date),
         source_deadline: safeDate(x.source_deadline),
-        description_excerpt: x.description_excerpt?.slice(0, 500) ?? null,
+        description_excerpt: x.description_excerpt?.slice(0, 240) ?? null,
         last_seen_at: nowIso,
         consecutive_misses: 0,
         lifecycle_status: "active" as const,
