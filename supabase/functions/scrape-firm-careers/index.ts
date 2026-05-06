@@ -14,6 +14,29 @@ const corsHeaders = {
 const FIRECRAWL_V2 = "https://api.firecrawl.dev/v2";
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
+const MAX_DETAIL_FETCHES = 15;
+
+// UN/intl HQ cities where postings are typically open to all member-state nationals (incl. India).
+const INTL_HQ_CITIES = [
+  "new york","geneva","vienna","nairobi","bangkok","bonn","the hague",
+  "rome","paris","copenhagen","addis ababa","brussels","washington",
+  "montreal","istanbul","jakarta",
+];
+// Common non-India country tokens that indicate a local-hire duty station.
+const NON_INDIA_COUNTRIES = [
+  "pakistan","bangladesh","sri lanka","nepal","bhutan","maldives","afghanistan",
+  "kenya","ethiopia","uganda","tanzania","south sudan","sudan","somalia","nigeria",
+  "ghana","rwanda","drc","congo","myanmar","thailand","vietnam","cambodia","laos",
+  "philippines","indonesia","malaysia","singapore","japan","south korea","china",
+  "uk","united kingdom","england","scotland","wales","ireland","france","germany",
+  "spain","italy","netherlands","belgium","sweden","norway","denmark","finland",
+  "switzerland","austria","poland","portugal","greece","turkey","ukraine","russia",
+  "usa","united states","canada","mexico","brazil","argentina","chile","colombia",
+  "peru","venezuela","australia","new zealand","uae","dubai","abu dhabi","qatar",
+  "saudi arabia","oman","kuwait","bahrain","jordan","lebanon","israel","palestine",
+  "iraq","iran","syria","yemen","egypt","morocco","tunisia","algeria","libya",
+  "south africa",
+];
 
 const EXTRACTION_PROMPT = `You extract legal job vacancies from an employer's careers page (markdown).
 
