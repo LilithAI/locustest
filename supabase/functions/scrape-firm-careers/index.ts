@@ -24,7 +24,8 @@ RULES:
 - Return [] if there are no concrete openings.
 - role_type values: lateral_hire, internship, retainership, graduate_trainee, fellowship, consultant, support_staff, other.
 - application_mode values: external_url, email, onsite_form, ats_redirect, unclear.
-- description_excerpt: ≤500 chars summary.
+- description_full: a DETAILED description (800-2500 chars) summarising the role. Cover, when present in the source: what the role is about, key responsibilities, required qualifications / PQE / skills, eligibility nuances, location/remote setup, compensation/perks, application instructions, and any deadlines. Use short paragraphs and preserve bullet points (use "- " prefix). Do NOT invent facts. If the source is thin, write a shorter honest summary rather than padding.
+- description_excerpt: a tight ≤220 char one-line teaser for list cards.
 `;
 
 const ELIGIBILITY_PROMPT = `You decide if a legal vacancy is open to Indian law students/lawyers.
