@@ -14,16 +14,218 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bar_answers: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          is_top: boolean
+          parent_id: string | null
+          question_id: string
+          user_id: string
+          votes: number
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          is_top?: boolean
+          parent_id?: string | null
+          question_id: string
+          user_id: string
+          votes?: number
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          is_top?: boolean
+          parent_id?: string | null
+          question_id?: string
+          user_id?: string
+          votes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bar_answers_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "bar_answers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bar_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "bar_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bar_answers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bar_questions: {
+        Row: {
+          answer_count: number
+          audience: Database["public"]["Enums"]["bar_audience"]
+          body: string
+          created_at: string
+          id: string
+          tags: string[]
+          title: string
+          user_id: string
+          votes: number
+        }
+        Insert: {
+          answer_count?: number
+          audience?: Database["public"]["Enums"]["bar_audience"]
+          body: string
+          created_at?: string
+          id?: string
+          tags?: string[]
+          title: string
+          user_id: string
+          votes?: number
+        }
+        Update: {
+          answer_count?: number
+          audience?: Database["public"]["Enums"]["bar_audience"]
+          body?: string
+          created_at?: string
+          id?: string
+          tags?: string[]
+          title?: string
+          user_id?: string
+          votes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bar_questions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feature_votes: {
+        Row: {
+          created_at: string
+          feature_key: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feature_key: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feature_key?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_votes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      waitlist_submissions: {
+        Row: {
+          created_at: string
+          data: Json
+          email: string
+          id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          email: string
+          id?: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          email?: string
+          id?: string
+          type?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_email_by_username: { Args: { p_username: string }; Returns: string }
+      get_feature_vote_counts: {
+        Args: never
+        Returns: {
+          feature_key: string
+          vote_count: number
+        }[]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
+      bar_audience: "student" | "firm" | "institution"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +352,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+      bar_audience: ["student", "firm", "institution"],
+    },
   },
 } as const
