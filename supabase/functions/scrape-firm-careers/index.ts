@@ -455,12 +455,61 @@ serve(async (req) => {
     // Process each extracted vacancy
     const seenHashes = new Set<string>();
     let inserted = 0, updated = 0, duplicates = 0;
+    let detailFetches = 0;
     const nowIso = new Date().toISOString();
 
     for (const x of extracted) {
       if (!x.role_title?.trim()) continue;
       const hash = dedupeHash(source.id, x.role_title, x.location);
       seenHashes.add(hash);
+
+      // Pass-1 eligibility classification (cheap, decides if pass-2 detail fetch is worth it)
+      let eligibility: EligibilityResult = { eligibility: "ambiguous", reason: "not classified", confidence: 0 };
+      try {
+        eligibility = await classifyEligibility(x, source.country, source.source_type, LOVABLE_API_KEY);
+      } catch (e) {
+        logLines.push(`classifier err: ${e instanceof Error ? e.message : ""}`);
+      }
+
+      // Belt-and-braces: force ineligible for non-India duty stations on UN/intl sources
+      const guard = forceLocalHireIneligible(x.location, x.is_remote, source.source_type);
+      if (guard.ineligible) {
+        eligibility = { eligibility: "ineligible", reason: guard.reason ?? "non-India duty station", confidence: 0.95 };
+      }
+
+      // Pass-2: enrich description from detail page (skip for ineligible to save credits)
+      if (
+        eligibility.eligibility !== "ineligible" &&
+        !x.description_full &&
+        x.detail_url &&
+        detailFetches < MAX_DETAIL_FETCHES
+      ) {
+        const resolved = resolveDetailUrl(x.detail_url, source.url);
+        if (resolved && sameOrigin(resolved, source.url) && resolved !== source.url) {
+          try {
+            detailFetches++;
+            const detailMd = await firecrawlScrape(resolved, FIRECRAWL_API_KEY);
+            const enr = await aiEnrichDetail(detailMd, x.role_title, LOVABLE_API_KEY);
+            if (enr) {
+              if (enr.description_full) x.description_full = enr.description_full;
+              if (enr.description_excerpt && !x.description_excerpt) x.description_excerpt = enr.description_excerpt;
+              if (enr.pqe_min != null && x.pqe_min == null) x.pqe_min = enr.pqe_min;
+              if (enr.pqe_max != null && x.pqe_max == null) x.pqe_max = enr.pqe_max;
+              if (enr.application_mode && !x.application_mode) x.application_mode = enr.application_mode;
+              if (enr.application_target && !x.application_target) x.application_target = enr.application_target;
+              if (enr.application_subject && !x.application_subject) x.application_subject = enr.application_subject;
+              if (enr.source_deadline && !x.source_deadline) x.source_deadline = enr.source_deadline;
+              logLines.push(`detail OK ${enr.description_full?.length ?? 0} chars — ${x.role_title.slice(0, 50)}`);
+            } else {
+              logLines.push(`detail EMPTY — ${x.role_title.slice(0, 50)}`);
+            }
+          } catch (e) {
+            logLines.push(`detail ERR ${e instanceof Error ? e.message.slice(0, 80) : ""} — ${x.role_title.slice(0, 50)}`);
+          }
+        } else {
+          logLines.push(`detail SKIP cross-origin — ${x.role_title.slice(0, 50)}`);
+        }
+      }
 
       const { data: existing } = await admin
         .from("vacancy_review_queue")
@@ -489,31 +538,18 @@ serve(async (req) => {
       };
 
       if (existing) {
-        // Re-run classifier only if no manual override
-        let eligPatch: Record<string, unknown> = {};
-        if (!existing.manual_eligibility_override) {
-          try {
-            const elig = await classifyEligibility(x, source.country, source.source_type, LOVABLE_API_KEY);
-            eligPatch = {
-              eligibility_india: elig.eligibility,
-              eligibility_reason: elig.reason,
-              eligibility_confidence: elig.confidence,
-            };
-          } catch (e) {
-            logLines.push(`classifier err on update: ${e instanceof Error ? e.message : ""}`);
-          }
-        }
-        await admin.from("vacancy_review_queue").update({ ...baseFields, ...eligPatch }).eq("id", existing.id);
+        const eligPatch = existing.manual_eligibility_override ? {} : {
+          eligibility_india: eligibility.eligibility,
+          eligibility_reason: eligibility.reason,
+          eligibility_confidence: eligibility.confidence,
+        };
+        await admin.from("vacancy_review_queue").update({
+          ...baseFields,
+          ai_extracted: x as unknown as Record<string, unknown>,
+          ...eligPatch,
+        }).eq("id", existing.id);
         duplicates++; updated++;
         continue;
-      }
-
-      // New vacancy — classify
-      let eligibility: EligibilityResult = { eligibility: "ambiguous", reason: "not classified", confidence: 0 };
-      try {
-        eligibility = await classifyEligibility(x, source.country, source.source_type, LOVABLE_API_KEY);
-      } catch (e) {
-        logLines.push(`classifier err on new: ${e instanceof Error ? e.message : ""}`);
       }
 
       const { error: insErr } = await admin.from("vacancy_review_queue").insert({
@@ -534,6 +570,7 @@ serve(async (req) => {
       if (!insErr) inserted++;
       else logLines.push(`insert err: ${insErr.message}`);
     }
+    logLines.push(`pass-2 detail fetches: ${detailFetches}`);
 
     // Lifecycle: increment misses for vacancies in queue from this source not seen this run
     const { data: existingForSource } = await admin
