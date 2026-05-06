@@ -167,13 +167,15 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
   const ambiguous = rows.filter((r) => r.eligibility_india === "ambiguous" || r.eligibility_india === "unknown");
   const ineligible = rows.filter((r) => r.eligibility_india === "ineligible");
 
-  const tickAll = async () => {
+  const tickAll = async (force = false) => {
     setTickRunning(true);
     try {
-      const { data, error } = await supabase.functions.invoke("scrape-tick", { body: {} });
+      const { data, error } = await supabase.functions.invoke("scrape-tick", {
+        body: force ? { force: true } : {},
+      });
       if (error) throw error;
       const d = data as { processed?: number };
-      toast.success(`Tick processed ${d.processed ?? 0} sources`);
+      toast.success(`${force ? "Scrape all" : "Tick"} processed ${d.processed ?? 0} sources`);
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Tick failed");
