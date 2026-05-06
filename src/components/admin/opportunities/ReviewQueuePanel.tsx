@@ -163,58 +163,94 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
     else { toast.success("Promoted to live vacancy"); setOpen(false); setEditing(null); await load(); }
   };
 
+  const eligible = rows.filter((r) => r.eligibility_india === "eligible");
+  const ambiguous = rows.filter((r) => r.eligibility_india === "ambiguous" || r.eligibility_india === "unknown");
+  const ineligible = rows.filter((r) => r.eligibility_india === "ineligible");
+
+  const tickAll = async () => {
+    setTickRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("scrape-tick", { body: {} });
+      if (error) throw error;
+      const d = data as { processed?: number };
+      toast.success(`Tick processed ${d.processed ?? 0} sources`);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Tick failed");
+    } finally {
+      setTickRunning(false);
+    }
+  };
+
+  const tabRows = tab === "eligible" ? eligible : tab === "ambiguous" ? ambiguous : tab === "ineligible" ? ineligible : [];
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant={tab === "queue" ? "default" : "outline"}
-          onClick={() => setTab("queue")}
-          className="font-bold border-2 border-foreground"
-        >
-          Queue ({rows.length})
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button size="sm" variant={tab === "eligible" ? "default" : "outline"} onClick={() => setTab("eligible")} className="font-bold border-2 border-foreground">
+          ✅ Eligible ({eligible.length})
         </Button>
-        <Button
-          size="sm"
-          variant={tab === "sources" ? "default" : "outline"}
-          onClick={() => setTab("sources")}
-          className="font-bold border-2 border-foreground"
-        >
-          Sources ({sources.length})
+        <Button size="sm" variant={tab === "ambiguous" ? "default" : "outline"} onClick={() => setTab("ambiguous")} className="font-bold border-2 border-foreground">
+          ⚠️ Ambiguous ({ambiguous.length})
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => void load()} className="ml-auto">
-          <RefreshCw size={14} className="mr-1" /> Refresh
+        <Button size="sm" variant={tab === "ineligible" ? "default" : "outline"} onClick={() => setTab("ineligible")} className="font-bold border-2 border-foreground">
+          🔴 Ineligible ({ineligible.length})
         </Button>
+        <Button size="sm" variant={tab === "sources" ? "default" : "outline"} onClick={() => setTab("sources")} className="font-bold border-2 border-foreground">
+          🏢 Sources ({sources.length})
+        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <Button size="sm" variant="outline" disabled={tickRunning} onClick={() => void tickAll()} title="Run scrape-tick now (processes due sources)">
+            {tickRunning ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
+            Run tick
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => void load()}>
+            <RefreshCw size={14} className="mr-1" /> Refresh
+          </Button>
+        </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-accent" /></div>
-      ) : tab === "queue" ? (
+      ) : tab !== "sources" ? (
         <div className="grid gap-3">
-          {rows.length === 0 && (
+          {tabRows.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Queue is empty. Sources are scraped weekly (Sun 02:00 IST), or trigger one manually from the Sources tab.
+              Nothing here. Hourly cron processes due sources, or hit "Run tick" / "Scrape now".
             </p>
           )}
-          {rows.map((r) => {
+          {tabRows.map((r) => {
             const ext = r.ai_extracted || {};
+            const elColor = r.eligibility_india === "eligible" ? "default"
+              : r.eligibility_india === "ineligible" ? "destructive" : "secondary";
             return (
               <Card key={r.id} className="border-2 border-foreground p-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant={elColor as any} className="text-[10px] uppercase">{r.eligibility_india}</Badge>
+                      {r.lifecycle_status !== "active" && (
+                        <Badge variant="outline" className="text-[10px] uppercase">{r.lifecycle_status}</Badge>
+                      )}
                       <Badge variant="outline" className="text-[10px] font-mono uppercase">{r.source}</Badge>
-                      <span className="font-heading font-bold">{ext.role || r.source_title || "(no role)"}</span>
+                      <span className="font-heading font-bold">{r.role_title || ext.role || r.source_title || "(no role)"}</span>
                     </div>
                     <div className="text-sm text-muted-foreground mt-0.5">
-                      {r.source_firm}{ext.location ? ` · ${ext.location}` : ""}
+                      {r.source_firm}
+                      {(r.location || ext.location) ? ` · ${r.location || ext.location}` : ""}
+                      {r.role_type ? ` · ${r.role_type}` : ""}
+                      {(r.pqe_min != null || r.pqe_max != null) ? ` · ${r.pqe_min ?? "?"}–${r.pqe_max ?? "?"} PQE` : ""}
                     </div>
+                    {r.eligibility_reason && (
+                      <div className="text-[11px] text-muted-foreground mt-1 italic">
+                        Why: {r.eligibility_reason}
+                        {r.eligibility_confidence != null ? ` (${Math.round(Number(r.eligibility_confidence) * 100)}%)` : ""}
+                      </div>
+                    )}
                     <div className="text-[11px] font-mono text-muted-foreground mt-1">
                       Found {new Date(r.discovered_at).toLocaleString()}
+                      {r.consecutive_misses > 0 ? ` · ${r.consecutive_misses} miss(es)` : ""}
                     </div>
-                    {ext.deadline && (
-                      <div className="text-xs text-foreground mt-1">Deadline: {ext.deadline}</div>
-                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button asChild size="sm" variant="outline">
@@ -230,7 +266,7 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
                       onClick={() => { setEditing(r); setOpen(true); }}
                       className="font-bold border-2 border-foreground shadow-[2px_2px_0_0_hsl(var(--foreground))]"
                     >
-                      <Check size={14} className="mr-1" /> Review & promote
+                      <Check size={14} className="mr-1" /> Promote
                     </Button>
                   </div>
                 </div>
@@ -244,13 +280,17 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
             <Card key={s.id} className="border-2 border-foreground p-3">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
-                  <div className="font-heading font-bold text-sm">{s.firm_name}</div>
+                  <div className="font-heading font-bold text-sm">{s.name || s.firm_name}</div>
                   <a href={s.url} target="_blank" rel="noreferrer noopener" className="text-xs text-muted-foreground hover:text-accent break-all">
                     {s.url}
                   </a>
                   <div className="text-[11px] font-mono text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-[9px]">{s.source_type}</Badge>
+                    <Badge variant="outline" className="text-[9px]">{s.tier}</Badge>
+                    <Badge variant="outline" className="text-[9px]">{s.country}</Badge>
+                    <Badge variant="outline" className="text-[9px]">{s.scrape_frequency}</Badge>
                     <Badge variant={s.active ? "default" : "outline"} className="text-[9px]">
-                      {s.active ? "active" : "inactive"}
+                      {s.active ? s.pipeline_status : "inactive"}
                     </Badge>
                     {s.last_status && (
                       <Badge variant={s.last_status === "success" ? "secondary" : "destructive"} className="text-[9px]">
