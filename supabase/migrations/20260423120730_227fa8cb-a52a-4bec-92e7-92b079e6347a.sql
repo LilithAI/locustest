@@ -1,0 +1,1 @@
+GRANT SELECT ON public.bar_challenges_student TO anon;

@@ -1,0 +1,1 @@
+DELETE FROM public.beta_testers WHERE id = '4ad310c9-d829-46cd-8dc5-85aebac594e1';

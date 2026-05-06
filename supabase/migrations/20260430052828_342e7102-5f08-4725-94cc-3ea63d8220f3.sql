@@ -1,0 +1,1 @@
+UPDATE public.beta_testers SET round2_submitted_at = NULL WHERE id = '651b27b6-f85a-4e97-aa2b-d5bfb82fcf32';

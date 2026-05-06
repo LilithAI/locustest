@@ -1,0 +1,520 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes shapeFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(var(--shape-rot, 0deg)); }
+  50% { transform: translate3d(0, 14px, 0) rotate(var(--shape-rot, 0deg)); }
+}
+
+@keyframes shapeEnter {
+  from { opacity: 0; transform: translate3d(0, -120px, 0) rotate(var(--shape-rot, 0deg)); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) rotate(var(--shape-rot, 0deg)); }
+}
+
+@keyframes heroFadeIn {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.hero-fade-in {
+  animation: heroFadeIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hero-fade-in-delay-1 { animation-delay: 0.15s; }
+.hero-fade-in-delay-2 { animation-delay: 0.3s; }
+.hero-fade-in-delay-3 { animation-delay: 0.5s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-fade-in,
+  .hero-fade-in-delay-1,
+  .hero-fade-in-delay-2,
+  .hero-fade-in-delay-3 {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 98%;
+    --card-foreground: 0 0% 0%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 0 0% 94%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 45 100% 51%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 45 100% 51%;
+    --radius: 0.625rem;
+    --stats-bg: 0 0% 0%;
+    --stats-foreground: 0 0% 100%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 15%;
+    --sidebar-primary: 0 0% 0%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 94%;
+    --sidebar-accent-foreground: 0 0% 0%;
+    --sidebar-border: 0 0% 88%;
+    --sidebar-ring: 45 100% 51%;
+
+    /* Neobrutalist vars */
+    --main: hsl(45, 100%, 51%);
+    --overlay: rgba(0, 0, 0, 0.8);
+    --bg: #ffffff;
+    --bw: #ffffff;
+    --blank: #000;
+    --nborder: #000;
+    --ntext: #000;
+    --mtext: #000;
+    --shadow: 4px 4px 0px 0px #000;
+    --color-1: 45 100% 51%;
+    --color-2: 40 100% 45%;
+    --color-3: 50 100% 55%;
+    --color-4: 35 95% 50%;
+    --color-5: 55 100% 60%;
+  }
+
+  .dark {
+    --background: 0 0% 3%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 45 100% 51%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 45 100% 51%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 45 100% 51%;
+    --stats-bg: 0 0% 8%;
+    --stats-foreground: 0 0% 98%;
+
+    --sidebar-background: 0 0% 5%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 45 100% 51%;
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 45 100% 51%;
+
+    /* Neobrutalist vars */
+    --main: hsl(45, 100%, 51%);
+    --overlay: rgba(0, 0, 0, 0.8);
+    --bg: #080808;
+    --bw: #212121;
+    --blank: #fff;
+    --nborder: #fafafa;
+    --ntext: #fafafa;
+    --mtext: #000;
+    --shadow: 4px 4px 0px 0px #fafafa;
+    --color-1: 45 100% 51%;
+    --color-2: 40 100% 45%;
+    --color-3: 50 100% 55%;
+    --color-4: 35 95% 50%;
+    --color-5: 55 100% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Sora', sans-serif;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Glitch link effect */
+.glitch-link {
+  position: relative;
+}
+.glitch-link::before,
+.glitch-link::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+.glitch-link::before {
+  color: #ff00c1;
+  z-index: -1;
+  animation: glitch-burst-1 4s infinite;
+}
+.glitch-link::after {
+  color: #00fff9;
+  z-index: -1;
+  animation: glitch-burst-2 4s infinite;
+}
+
+@keyframes glitch-burst-1 {
+  0%, 85%  { opacity: 0; }
+  86%      { opacity: 0.8; clip-path: inset(80% 0 1% 0);  transform: translate(-2px, -1px); }
+  88%      { opacity: 0.8; clip-path: inset(10% 0 60% 0);  transform: translate(2px, 1px); }
+  90%      { opacity: 0.8; clip-path: inset(50% 0 20% 0);  transform: translate(-1px, 2px); }
+  92%      { opacity: 0.8; clip-path: inset(30% 0 40% 0);  transform: translate(1px, -2px); }
+  94%      { opacity: 0.8; clip-path: inset(70% 0 5% 0);   transform: translate(-2px, 1px); }
+  96%      { opacity: 0.8; clip-path: inset(5% 0 80% 0);   transform: translate(2px, -1px); }
+  98%, 100% { opacity: 0; }
+}
+@keyframes glitch-burst-2 {
+  0%, 84%  { opacity: 0; }
+  85%      { opacity: 0.8; clip-path: inset(5% 0 80% 0);   transform: translate(2px, 1px); }
+  87%      { opacity: 0.8; clip-path: inset(60% 0 10% 0);  transform: translate(-2px, -1px); }
+  89%      { opacity: 0.8; clip-path: inset(20% 0 50% 0);  transform: translate(1px, -2px); }
+  91%      { opacity: 0.8; clip-path: inset(40% 0 30% 0);  transform: translate(-1px, 2px); }
+  93%      { opacity: 0.8; clip-path: inset(1% 0 70% 0);   transform: translate(2px, -1px); }
+  95%      { opacity: 0.8; clip-path: inset(80% 0 1% 0);   transform: translate(-2px, 1px); }
+  97%, 100% { opacity: 0; }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Hide scrollbar for nav strip */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes slide-up-dock {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+.animate-slide-up-dock {
+  animation: slide-up-dock 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ============================================================
+   Locus+ — Dark Neobrutalist scope
+   2px borders, 6px radius, NO shadows, NO gradients on dark.
+   Cormorant Garamond reserved for legal/document/scenario content.
+   ============================================================ */
+.locus-plus {
+  --lp-bg: 0 0% 0%;            /* #000 */
+  --lp-bg-1: 0 0% 4%;          /* #0a0a0a */
+  --lp-bg-2: 0 0% 7%;          /* #121212 */
+  --lp-bg-3: 0 0% 10%;         /* #1a1a1a */
+  --lp-line: 0 0% 15%;         /* #262626 */
+  --lp-line-2: 0 0% 23%;       /* #3a3a3a */
+  --lp-text: 0 0% 100%;
+  --lp-text-2: 0 0% 71%;       /* #b4b4b4 */
+  --lp-text-3: 0 0% 43%;       /* #6e6e6e */
+  --lp-accent: 45 100% 63%;    /* #FFC940 */
+  --lp-accent-ink: 0 0% 7%;
+  --lp-accent-soft: 45 100% 63% / 0.12;
+  --lp-accent-soft-2: 45 100% 63% / 0.22;
+  --lp-good: 152 55% 53%;      /* #3ecf8e */
+  --lp-good-soft: 152 55% 53% / 0.14;
+  --lp-bad: 358 100% 67%;      /* #ff5a5f */
+  --lp-bad-soft: 358 100% 67% / 0.14;
+  --lp-paper: 39 39% 93%;      /* #f5f1e8 */
+  --lp-paper-ink: 36 22% 9%;   /* #1a1712 */
+
+  background-color: hsl(var(--lp-bg));
+  color: hsl(var(--lp-text));
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+/* Display text uses Sora — set headings to display family */
+.locus-plus h1, .locus-plus h2, .locus-plus h3, .locus-plus h4, .locus-plus .lp-display {
+  font-family: 'Sora', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.locus-plus .lp-serif {
+  font-family: 'Cormorant Garamond', 'Iowan Old Style', Georgia, serif;
+}
+.locus-plus .lp-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-feature-settings: "zero", "ss02";
+}
+.locus-plus .lp-up {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* paper (cream surface for legal docs only) */
+.locus-plus .lp-paper {
+  background: hsl(var(--lp-paper));
+  color: hsl(var(--lp-paper-ink));
+  border: 2px solid hsl(var(--lp-line));
+  border-radius: 6px;
+}
+
+/* spinner */
+.locus-plus .lp-spinner {
+  width: 16px; height: 16px;
+  border: 2px solid hsl(var(--lp-line));
+  border-top-color: hsl(var(--lp-accent));
+  border-radius: 50%;
+  animation: lp-spin 800ms linear infinite;
+}
+@keyframes lp-spin { to { transform: rotate(360deg); } }
+
+/* Typing dots */
+.locus-plus .lp-dot {
+  width: 5px; height: 5px;
+  background: hsl(var(--lp-accent));
+  border-radius: 50%;
+  animation: lp-pulse 1.2s ease-in-out infinite;
+}
+.locus-plus .lp-dot:nth-child(2) { animation-delay: 0.2s; }
+.locus-plus .lp-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes lp-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+/* Custom dark scrollbars inside premium scope */
+.locus-plus .lp-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.locus-plus .lp-scroll::-webkit-scrollbar-thumb { background: hsl(var(--lp-line)); border-radius: 4px; }
+.locus-plus .lp-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================
+   Playbook reader prose — Editorial Magazine Treatment
+   Instrument Serif for display, Sora tracked for labels,
+   five-color semantic palette.
+   ============================================================ */
+.playbook-prose {
+  /* Editorial color palette — scoped strictly to .playbook-prose */
+  --prose-anchor: 211 56% 71%;     /* sky blue — structural anchors, italics */
+  --prose-positive: 145 35% 62%;   /* sage green — what works, tips */
+  --prose-warning: 6 75% 70%;      /* rose/coral — what kills, warnings */
+  --prose-emphasis: 45 100% 51%;   /* yellow — strong, lead, code chips */
+
+  color: hsl(var(--foreground) / 0.82);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  font-weight: 400;
+  letter-spacing: -0.003em;
+}
+
+/* H2 — Instrument Serif upright. Major section break. */
+.playbook-prose h2 {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: 2.5rem;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  color: hsl(var(--foreground));
+  margin-top: 3.5rem;
+  margin-bottom: 1.25rem;
+  scroll-margin-top: 6rem;
+}
+.playbook-prose h2:first-child {
+  margin-top: 0;
+  font-style: italic;
+  font-size: 2.875rem;
+  letter-spacing: -0.02em;
+}
+
+/* Eyebrow label rendered before each H2 (except the first) via the custom
+   MDX h2 component. Styled as tracked uppercase Sora. */
+.playbook-prose .prose-eyebrow {
+  display: block;
+  font-family: 'Sora', ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: hsl(var(--prose-emphasis));
+  margin-top: 3.5rem;
+  margin-bottom: 0.5rem;
+}
+.playbook-prose .prose-eyebrow + h2 {
+  margin-top: 0;
+}
+
+/* H3 — Sora tracked uppercase label. Color may be overridden by variant class. */
+.playbook-prose h3 {
+  font-family: 'Sora', ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: hsl(var(--prose-anchor));
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  scroll-margin-top: 6rem;
+}
+.playbook-prose h3.prose-h3-positive { color: hsl(var(--prose-positive)); }
+.playbook-prose h3.prose-h3-warning { color: hsl(var(--prose-warning)); }
+
+/* H4 — small caps mono label, muted */
+.playbook-prose h4 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: hsl(var(--muted-foreground));
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Paragraphs */
+.playbook-prose p {
+  margin-bottom: 1.5rem;
+}
+
+/* Lead paragraph — first paragraph after opening H2: large yellow italic deck */
+.playbook-prose > h2:first-child + p {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: 1.625rem;
+  line-height: 1.4;
+  color: hsl(var(--prose-emphasis));
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  margin-bottom: 2.25rem;
+}
+
+/* Strong — yellow accent for scannable hits of color through body text */
+.playbook-prose strong {
+  color: hsl(var(--prose-emphasis));
+  font-weight: 600;
+}
+
+/* Italic — soft sky blue. Used for case names, statutes, foreign terms. */
+.playbook-prose em {
+  color: hsl(var(--prose-anchor));
+  font-style: italic;
+}
+
+/* Lists — clear, scannable, generous */
+.playbook-prose ul,
+.playbook-prose ol {
+  margin: 1.5rem 0;
+  padding-left: 1.5rem;
+}
+.playbook-prose ul { list-style: none; padding-left: 0; }
+.playbook-prose ul > li {
+  position: relative;
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.75;
+}
+.playbook-prose ul > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.7em;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: hsl(var(--foreground) / 0.35);
+}
+.playbook-prose ol {
+  list-style: decimal;
+  padding-left: 1.75rem;
+}
+.playbook-prose ol > li {
+  margin-bottom: 0.75rem;
+  line-height: 1.75;
+  padding-left: 0.5rem;
+}
+.playbook-prose ol > li::marker {
+  color: hsl(var(--prose-anchor));
+  font-weight: 600;
+}
+.playbook-prose li > p { margin-bottom: 0.5rem; }
+.playbook-prose li > p:last-child { margin-bottom: 0; }
+.playbook-prose li > ul,
+.playbook-prose li > ol { margin: 0.5rem 0 0.5rem 0; }
+
+/* KeyPoints overrides — suppress prose bullet/padding inside the component */
+.playbook-prose .keypoints-list > li { padding-left: 0; margin-bottom: 0; }
+.playbook-prose .keypoints-list > li::before { display: none; content: none; }
+
+/* Inline code — yellow-tinted chip */
+.playbook-prose code {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875em;
+  background: hsl(var(--prose-emphasis) / 0.14);
+  color: hsl(var(--prose-emphasis));
+  padding: 0.125rem 0.4rem;
+  border-radius: 0.25rem;
+  border: 1px solid hsl(var(--prose-emphasis) / 0.22);
+}
+
+/* Links — confident underline, accent on hover */
+.playbook-prose a {
+  color: hsl(var(--foreground));
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--foreground) / 0.35);
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+.playbook-prose a:hover {
+  color: hsl(var(--accent));
+  text-decoration-color: hsl(var(--accent));
+}
+
+/* Horizontal rule — quiet structural break */
+.playbook-prose hr {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 3rem auto;
+  width: 4rem;
+}
+
+/* Blockquote — editorial, not yelled */
+.playbook-prose blockquote {
+  border-left: 2px solid hsl(var(--foreground) / 0.25);
+  padding-left: 1.5rem;
+  margin: 2rem 0;
+  font-style: italic;
+  color: hsl(var(--foreground) / 0.78);
+}
+.playbook-prose blockquote p { margin-bottom: 0.75rem; }
+.playbook-prose blockquote p:last-child { margin-bottom: 0; }

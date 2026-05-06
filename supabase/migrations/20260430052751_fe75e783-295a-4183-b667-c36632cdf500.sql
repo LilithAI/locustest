@@ -1,0 +1,1 @@
+DELETE FROM public.beta_feedback_round2;

@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.dispatch_content_notification_test(text, uuid, text);
