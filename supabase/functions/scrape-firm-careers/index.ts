@@ -195,6 +195,7 @@ async function aiExtract(markdown: string, sourceName: string, lovableKey: strin
                   source_deadline: { type: ["string", "null"] },
                   description_excerpt: { type: ["string", "null"] },
                   description_full: { type: ["string", "null"] },
+                  detail_url: { type: ["string", "null"] },
                 },
                 required: ["role_title"],
                 additionalProperties: false,
