@@ -103,7 +103,7 @@ async function aiCall(body: unknown, lovableKey: string): Promise<any> {
 }
 
 async function aiExtract(markdown: string, sourceName: string, lovableKey: string): Promise<ExtractedVacancy[]> {
-  const truncated = markdown.length > 14000 ? markdown.slice(0, 14000) : markdown;
+  const truncated = markdown.length > 24000 ? markdown.slice(0, 24000) : markdown;
   const data = await aiCall({
     model: MODEL,
     messages: [
