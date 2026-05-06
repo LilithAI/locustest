@@ -552,15 +552,28 @@ function ReviewDialog({
             </div>
             <div>
               <Label>Description</Label>
-              <Textarea rows={3} value={fields.description ?? ""} onChange={(e) => u("description", e.target.value)} />
+              <Textarea rows={10} value={fields.description ?? ""} onChange={(e) => u("description", e.target.value)} />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {(fields.description ?? "").length} chars · aim for 800–2500 for a meaningful preview.
+              </p>
             </div>
           </div>
 
-          <div>
-            <Label className="font-mono text-[10px] uppercase tracking-widest">Raw scraped markdown</Label>
-            <div className="mt-1 max-h-[60vh] overflow-y-auto border-2 border-border rounded p-3 text-xs whitespace-pre-wrap font-mono bg-muted/30">
-              {row.raw_text || "(empty)"}
+          <div className="space-y-3">
+            <div>
+              <Label className="font-mono text-[10px] uppercase tracking-widest">Live preview</Label>
+              <div className="mt-1 bg-muted/30 border-2 border-dashed border-border rounded p-3">
+                <VacancyCard vacancy={buildPreviewVacancy(row, fields)} archived={false} application={null} />
+              </div>
             </div>
+            <details className="group">
+              <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
+                Raw scraped markdown ▾
+              </summary>
+              <div className="mt-1 max-h-[40vh] overflow-y-auto border-2 border-border rounded p-3 text-xs whitespace-pre-wrap font-mono bg-muted/30">
+                {row.raw_text || "(empty)"}
+              </div>
+            </details>
           </div>
         </div>
 
