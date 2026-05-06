@@ -457,7 +457,7 @@ function ReviewDialog({
         location: row.location ?? e.location ?? "",
         eligibility: row.eligibility_reason ?? e.eligibility ?? "",
         stipend: e.stipend ?? "",
-        description: e.description ?? "",
+        description: e.description_full ?? e.description ?? e.description_excerpt ?? "",
         tier: "",
         practice_area: "",
       });
