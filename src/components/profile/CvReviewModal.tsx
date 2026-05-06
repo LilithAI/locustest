@@ -292,7 +292,7 @@ export default function CvReviewModal({ open, onOpenChange, userId, parsed, curr
       }
 
       if (Object.keys(profilePatch).length > 0) {
-        const { error } = await supabase.from("profiles").update(profilePatch).eq("id", userId);
+        const { error } = await supabase.from("profiles").update(profilePatch as any).eq("id", userId);
         if (error) throw new Error(`Profile update failed: ${error.message}`);
       }
 

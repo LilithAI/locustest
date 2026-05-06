@@ -93,7 +93,7 @@ export default function ChallengesTable() {
     const { data: { user } } = await supabase.auth.getUser();
     const patch: Record<string, unknown> = { status, ...extra };
     if (status === "approved") { patch.approved_by = user?.id ?? null; patch.approved_at = new Date().toISOString(); }
-    const { error } = await supabase.from("bar_challenges").update(patch).eq("id", id);
+    const { error } = await supabase.from("bar_challenges").update(patch as any).eq("id", id);
     if (error) toast.error(error.message);
     else { toast.success(`Status → ${status}`); load(); }
   };
