@@ -1,0 +1,1 @@
+DELETE FROM public.vacancy_review_queue WHERE eligibility_india = 'eligible' AND status = 'pending';
