@@ -214,6 +214,67 @@ async function aiExtract(markdown: string, sourceName: string, lovableKey: strin
   try { return (JSON.parse(args).vacancies ?? []) as ExtractedVacancy[]; } catch { return []; }
 }
 
+interface DetailEnrichment {
+  description_full: string | null;
+  description_excerpt: string | null;
+  pqe_min: number | null;
+  pqe_max: number | null;
+  application_mode: string | null;
+  application_target: string | null;
+  application_subject: string | null;
+  source_deadline: string | null;
+}
+
+function sameOrigin(a: string, b: string): boolean {
+  try {
+    const ua = new URL(a);
+    const ub = new URL(b);
+    const ha = ua.hostname.split(".").slice(-2).join(".");
+    const hb = ub.hostname.split(".").slice(-2).join(".");
+    return ha === hb;
+  } catch { return false; }
+}
+
+function resolveDetailUrl(detail: string, sourceUrl: string): string | null {
+  try { return new URL(detail, sourceUrl).toString(); } catch { return null; }
+}
+
+async function aiEnrichDetail(markdown: string, role: string, lovableKey: string): Promise<DetailEnrichment | null> {
+  const truncated = markdown.length > 18000 ? markdown.slice(0, 18000) : markdown;
+  const data = await aiCall({
+    model: MODEL,
+    messages: [
+      { role: "system", content: DETAIL_PROMPT },
+      { role: "user", content: `ROLE: ${role}\n\nDETAIL PAGE MARKDOWN:\n\n${truncated}` },
+    ],
+    tools: [{
+      type: "function",
+      function: {
+        name: "enrich_vacancy",
+        parameters: {
+          type: "object",
+          properties: {
+            description_full: { type: ["string", "null"] },
+            description_excerpt: { type: ["string", "null"] },
+            pqe_min: { type: ["number", "null"] },
+            pqe_max: { type: ["number", "null"] },
+            application_mode: { type: ["string", "null"] },
+            application_target: { type: ["string", "null"] },
+            application_subject: { type: ["string", "null"] },
+            source_deadline: { type: ["string", "null"] },
+          },
+          required: ["description_full"],
+          additionalProperties: false,
+        },
+      },
+    }],
+    tool_choice: { type: "function", function: { name: "enrich_vacancy" } },
+  }, lovableKey);
+  const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+  if (!args) return null;
+  try { return JSON.parse(args) as DetailEnrichment; } catch { return null; }
+}
+
 interface EligibilityResult {
   eligibility: "eligible" | "ambiguous" | "ineligible";
   reason: string;
