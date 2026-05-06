@@ -477,9 +477,8 @@ serve(async (req) => {
         eligibility = { eligibility: "ineligible", reason: guard.reason ?? "non-India duty station", confidence: 0.95 };
       }
 
-      // Pass-2: enrich description from detail page (skip for ineligible to save credits)
+      // Pass-2: enrich description from detail page (always, even if ineligible)
       if (
-        eligibility.eligibility !== "ineligible" &&
         !x.description_full &&
         x.detail_url &&
         detailFetches < MAX_DETAIL_FETCHES
