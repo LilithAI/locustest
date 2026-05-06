@@ -14,105 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      bar_answers: {
-        Row: {
-          body: string
-          created_at: string
-          id: string
-          is_top: boolean
-          parent_id: string | null
-          question_id: string
-          user_id: string
-          votes: number
-        }
-        Insert: {
-          body: string
-          created_at?: string
-          id?: string
-          is_top?: boolean
-          parent_id?: string | null
-          question_id: string
-          user_id: string
-          votes?: number
-        }
-        Update: {
-          body?: string
-          created_at?: string
-          id?: string
-          is_top?: boolean
-          parent_id?: string | null
-          question_id?: string
-          user_id?: string
-          votes?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bar_answers_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "bar_answers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bar_answers_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "bar_questions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bar_answers_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bar_questions: {
-        Row: {
-          answer_count: number
-          audience: Database["public"]["Enums"]["bar_audience"]
-          body: string
-          created_at: string
-          id: string
-          tags: string[]
-          title: string
-          user_id: string
-          votes: number
-        }
-        Insert: {
-          answer_count?: number
-          audience?: Database["public"]["Enums"]["bar_audience"]
-          body: string
-          created_at?: string
-          id?: string
-          tags?: string[]
-          title: string
-          user_id: string
-          votes?: number
-        }
-        Update: {
-          answer_count?: number
-          audience?: Database["public"]["Enums"]["bar_audience"]
-          body?: string
-          created_at?: string
-          id?: string
-          tags?: string[]
-          title?: string
-          user_id?: string
-          votes?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bar_questions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       feature_votes: {
         Row: {
           created_at: string
@@ -142,21 +43,168 @@ export type Database = {
           },
         ]
       }
-      profiles: {
+      profile_internships: {
         Row: {
           created_at: string
-          display_name: string | null
+          description: string | null
+          end_date: string | null
+          firm_name: string
           id: string
+          role: string
+          start_date: string
+          user_id: string
         }
         Insert: {
           created_at?: string
-          display_name?: string | null
-          id: string
+          description?: string | null
+          end_date?: string | null
+          firm_name: string
+          id?: string
+          role: string
+          start_date: string
+          user_id: string
         }
         Update: {
           created_at?: string
-          display_name?: string | null
+          description?: string | null
+          end_date?: string | null
+          firm_name?: string
           id?: string
+          role?: string
+          start_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_internships_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_moots: {
+        Row: {
+          competition_name: string
+          created_at: string
+          id: string
+          result: Database["public"]["Enums"]["moot_result"]
+          role: Database["public"]["Enums"]["moot_role"]
+          user_id: string
+          year: number
+        }
+        Insert: {
+          competition_name: string
+          created_at?: string
+          id?: string
+          result: Database["public"]["Enums"]["moot_result"]
+          role: Database["public"]["Enums"]["moot_role"]
+          user_id: string
+          year: number
+        }
+        Update: {
+          competition_name?: string
+          created_at?: string
+          id?: string
+          result?: Database["public"]["Enums"]["moot_result"]
+          role?: Database["public"]["Enums"]["moot_role"]
+          user_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_moots_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_publications: {
+        Row: {
+          created_at: string
+          id: string
+          publication_date: string
+          publisher: string
+          title: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          publication_date: string
+          publisher: string
+          title: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          publication_date?: string
+          publisher?: string
+          title?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_publications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          cgpa: number | null
+          college: string | null
+          created_at: string
+          cv_uploaded_at: string | null
+          cv_url: string | null
+          degree: Database["public"]["Enums"]["degree_type"] | null
+          display_name: string | null
+          graduation_year: number | null
+          id: string
+          subjects_of_interest: string[]
+          username: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          cgpa?: number | null
+          college?: string | null
+          created_at?: string
+          cv_uploaded_at?: string | null
+          cv_url?: string | null
+          degree?: Database["public"]["Enums"]["degree_type"] | null
+          display_name?: string | null
+          graduation_year?: number | null
+          id: string
+          subjects_of_interest?: string[]
+          username: string
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          cgpa?: number | null
+          college?: string | null
+          created_at?: string
+          cv_uploaded_at?: string | null
+          cv_url?: string | null
+          degree?: Database["public"]["Enums"]["degree_type"] | null
+          display_name?: string | null
+          graduation_year?: number | null
+          id?: string
+          subjects_of_interest?: string[]
+          username?: string
         }
         Relationships: []
       }
@@ -175,6 +223,21 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      visit_counter: {
+        Row: {
+          count: number
+          id: number
+        }
+        Insert: {
+          count?: number
+          id?: number
+        }
+        Update: {
+          count?: number
+          id?: number
         }
         Relationships: []
       }
@@ -222,10 +285,25 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_visit_count: { Args: never; Returns: number }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
       bar_audience: "student" | "firm" | "institution"
+      degree_type:
+        | "BA LLB"
+        | "BBA LLB"
+        | "BCom LLB"
+        | "LLB (3yr)"
+        | "LLM"
+        | "Other"
+      moot_result:
+        | "winner"
+        | "runner_up"
+        | "semi_finalist"
+        | "quarter_finalist"
+        | "participant"
+      moot_role: "speaker" | "researcher" | "both"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -355,6 +433,22 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "moderator", "user"],
       bar_audience: ["student", "firm", "institution"],
+      degree_type: [
+        "BA LLB",
+        "BBA LLB",
+        "BCom LLB",
+        "LLB (3yr)",
+        "LLM",
+        "Other",
+      ],
+      moot_result: [
+        "winner",
+        "runner_up",
+        "semi_finalist",
+        "quarter_finalist",
+        "participant",
+      ],
+      moot_role: ["speaker", "researcher", "both"],
     },
   },
 } as const
