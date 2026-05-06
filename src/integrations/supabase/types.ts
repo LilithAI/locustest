@@ -1026,46 +1026,67 @@ export type Database = {
       firm_careers_sources: {
         Row: {
           active: boolean
+          country: string
           created_at: string
-          firm_name: string
-          firm_slug: string
+          firm_name: string | null
+          firm_slug: string | null
           id: string
           last_error: string | null
           last_scraped_at: string | null
           last_status: string | null
+          last_success_at: string | null
+          name: string | null
           notes: string | null
+          pipeline_status: Database["public"]["Enums"]["vacancy_source_status"]
           scrape_count: number
+          scrape_frequency: Database["public"]["Enums"]["vacancy_scrape_frequency"]
           selector_hints: Json | null
+          source_type: Database["public"]["Enums"]["vacancy_source_type"]
+          tier: Database["public"]["Enums"]["vacancy_source_tier"]
           updated_at: string
           url: string
         }
         Insert: {
           active?: boolean
+          country?: string
           created_at?: string
-          firm_name: string
-          firm_slug: string
+          firm_name?: string | null
+          firm_slug?: string | null
           id?: string
           last_error?: string | null
           last_scraped_at?: string | null
           last_status?: string | null
+          last_success_at?: string | null
+          name?: string | null
           notes?: string | null
+          pipeline_status?: Database["public"]["Enums"]["vacancy_source_status"]
           scrape_count?: number
+          scrape_frequency?: Database["public"]["Enums"]["vacancy_scrape_frequency"]
           selector_hints?: Json | null
+          source_type?: Database["public"]["Enums"]["vacancy_source_type"]
+          tier?: Database["public"]["Enums"]["vacancy_source_tier"]
           updated_at?: string
           url: string
         }
         Update: {
           active?: boolean
+          country?: string
           created_at?: string
-          firm_name?: string
-          firm_slug?: string
+          firm_name?: string | null
+          firm_slug?: string | null
           id?: string
           last_error?: string | null
           last_scraped_at?: string | null
           last_status?: string | null
+          last_success_at?: string | null
+          name?: string | null
           notes?: string | null
+          pipeline_status?: Database["public"]["Enums"]["vacancy_source_status"]
           scrape_count?: number
+          scrape_frequency?: Database["public"]["Enums"]["vacancy_scrape_frequency"]
           selector_hints?: Json | null
+          source_type?: Database["public"]["Enums"]["vacancy_source_type"]
+          tier?: Database["public"]["Enums"]["vacancy_source_tier"]
           updated_at?: string
           url?: string
         }
@@ -1473,6 +1494,59 @@ export type Database = {
         }
         Relationships: []
       }
+      scrape_runs: {
+        Row: {
+          completed_at: string | null
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          raw_log: string | null
+          source_id: string | null
+          started_at: string
+          status: Database["public"]["Enums"]["scrape_run_status"]
+          triggered_by: string
+          vacancies_found: number
+          vacancies_marked_stale: number
+          vacancies_new: number
+        }
+        Insert: {
+          completed_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          raw_log?: string | null
+          source_id?: string | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["scrape_run_status"]
+          triggered_by?: string
+          vacancies_found?: number
+          vacancies_marked_stale?: number
+          vacancies_new?: number
+        }
+        Update: {
+          completed_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          raw_log?: string | null
+          source_id?: string | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["scrape_run_status"]
+          triggered_by?: string
+          vacancies_found?: number
+          vacancies_marked_stale?: number
+          vacancies_new?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scrape_runs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "firm_careers_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppressed_emails: {
         Row: {
           created_at: string
@@ -1643,63 +1717,152 @@ export type Database = {
       }
       vacancy_review_queue: {
         Row: {
+          admin_notes: string | null
           ai_extracted: Json
+          application_mode:
+            | Database["public"]["Enums"]["vacancy_application_mode_pipeline"]
+            | null
+          application_subject: string | null
+          application_target: string | null
+          consecutive_misses: number
           created_at: string
           dedupe_hash: string
+          description_excerpt: string | null
+          description_full: string | null
           discovered_at: string
           duplicate_of: string | null
+          eligibility_confidence: number | null
+          eligibility_india: Database["public"]["Enums"]["vacancy_eligibility_india"]
+          eligibility_reason: string | null
+          first_seen_at: string
           id: string
+          is_published: boolean
+          is_remote: boolean
+          last_seen_at: string
+          lifecycle_status: Database["public"]["Enums"]["vacancy_lifecycle_status"]
+          location: string | null
+          manual_eligibility_override: boolean
           notes: string | null
+          pqe_max: number | null
+          pqe_min: number | null
+          practice_area: string | null
           promoted_vacancy_id: string | null
           raw_text: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          role_title: string | null
+          role_type: Database["public"]["Enums"]["vacancy_role_type"] | null
           source: Database["public"]["Enums"]["vacancy_queue_source"]
+          source_deadline: string | null
           source_firm: string | null
+          source_id: string | null
+          source_posted_date: string | null
           source_title: string | null
           source_url: string
           status: Database["public"]["Enums"]["vacancy_queue_status"]
           updated_at: string
         }
         Insert: {
+          admin_notes?: string | null
           ai_extracted?: Json
+          application_mode?:
+            | Database["public"]["Enums"]["vacancy_application_mode_pipeline"]
+            | null
+          application_subject?: string | null
+          application_target?: string | null
+          consecutive_misses?: number
           created_at?: string
           dedupe_hash: string
+          description_excerpt?: string | null
+          description_full?: string | null
           discovered_at?: string
           duplicate_of?: string | null
+          eligibility_confidence?: number | null
+          eligibility_india?: Database["public"]["Enums"]["vacancy_eligibility_india"]
+          eligibility_reason?: string | null
+          first_seen_at?: string
           id?: string
+          is_published?: boolean
+          is_remote?: boolean
+          last_seen_at?: string
+          lifecycle_status?: Database["public"]["Enums"]["vacancy_lifecycle_status"]
+          location?: string | null
+          manual_eligibility_override?: boolean
           notes?: string | null
+          pqe_max?: number | null
+          pqe_min?: number | null
+          practice_area?: string | null
           promoted_vacancy_id?: string | null
           raw_text?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          role_title?: string | null
+          role_type?: Database["public"]["Enums"]["vacancy_role_type"] | null
           source: Database["public"]["Enums"]["vacancy_queue_source"]
+          source_deadline?: string | null
           source_firm?: string | null
+          source_id?: string | null
+          source_posted_date?: string | null
           source_title?: string | null
           source_url: string
           status?: Database["public"]["Enums"]["vacancy_queue_status"]
           updated_at?: string
         }
         Update: {
+          admin_notes?: string | null
           ai_extracted?: Json
+          application_mode?:
+            | Database["public"]["Enums"]["vacancy_application_mode_pipeline"]
+            | null
+          application_subject?: string | null
+          application_target?: string | null
+          consecutive_misses?: number
           created_at?: string
           dedupe_hash?: string
+          description_excerpt?: string | null
+          description_full?: string | null
           discovered_at?: string
           duplicate_of?: string | null
+          eligibility_confidence?: number | null
+          eligibility_india?: Database["public"]["Enums"]["vacancy_eligibility_india"]
+          eligibility_reason?: string | null
+          first_seen_at?: string
           id?: string
+          is_published?: boolean
+          is_remote?: boolean
+          last_seen_at?: string
+          lifecycle_status?: Database["public"]["Enums"]["vacancy_lifecycle_status"]
+          location?: string | null
+          manual_eligibility_override?: boolean
           notes?: string | null
+          pqe_max?: number | null
+          pqe_min?: number | null
+          practice_area?: string | null
           promoted_vacancy_id?: string | null
           raw_text?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          role_title?: string | null
+          role_type?: Database["public"]["Enums"]["vacancy_role_type"] | null
           source?: Database["public"]["Enums"]["vacancy_queue_source"]
+          source_deadline?: string | null
           source_firm?: string | null
+          source_id?: string | null
+          source_posted_date?: string | null
           source_title?: string | null
           source_url?: string
           status?: Database["public"]["Enums"]["vacancy_queue_status"]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vacancy_review_queue_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "firm_careers_sources"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       visit_counter: {
         Row: {
@@ -2163,10 +2326,50 @@ export type Database = {
         | "participant"
       moot_role: "speaker" | "researcher" | "both"
       opp_status: "live" | "archived"
+      scrape_run_status: "success" | "partial" | "failed" | "running"
       vacancy_application_mode: "email" | "external_url"
+      vacancy_application_mode_pipeline:
+        | "external_url"
+        | "email"
+        | "onsite_form"
+        | "ats_redirect"
+        | "unclear"
+      vacancy_eligibility_india:
+        | "eligible"
+        | "ambiguous"
+        | "ineligible"
+        | "unknown"
+      vacancy_lifecycle_status: "active" | "stale" | "expired"
       vacancy_opportunity_type: "internship" | "job"
       vacancy_queue_source: "lawctopus" | "linkedin" | "firm_careers" | "manual"
       vacancy_queue_status: "pending" | "approved" | "rejected" | "duplicate"
+      vacancy_role_type:
+        | "lateral_hire"
+        | "internship"
+        | "retainership"
+        | "graduate_trainee"
+        | "fellowship"
+        | "consultant"
+        | "support_staff"
+        | "other"
+      vacancy_scrape_frequency: "daily" | "weekly" | "biweekly" | "monthly"
+      vacancy_source_status: "active" | "paused" | "broken"
+      vacancy_source_tier: "tier_1" | "tier_2" | "tier_3" | "untiered"
+      vacancy_source_type:
+        | "indian_law_firm"
+        | "intl_law_firm"
+        | "un_agency"
+        | "intl_court"
+        | "ifi"
+        | "indian_govt"
+        | "indian_regulator"
+        | "psu"
+        | "big4"
+        | "corporate_indian"
+        | "corporate_mnc"
+        | "ngo"
+        | "legal_tech"
+        | "other"
       vacancy_status: "live" | "archived" | "deleted"
       vacancy_tier:
         | "tier_1"
@@ -2420,10 +2623,54 @@ export const Constants = {
       ],
       moot_role: ["speaker", "researcher", "both"],
       opp_status: ["live", "archived"],
+      scrape_run_status: ["success", "partial", "failed", "running"],
       vacancy_application_mode: ["email", "external_url"],
+      vacancy_application_mode_pipeline: [
+        "external_url",
+        "email",
+        "onsite_form",
+        "ats_redirect",
+        "unclear",
+      ],
+      vacancy_eligibility_india: [
+        "eligible",
+        "ambiguous",
+        "ineligible",
+        "unknown",
+      ],
+      vacancy_lifecycle_status: ["active", "stale", "expired"],
       vacancy_opportunity_type: ["internship", "job"],
       vacancy_queue_source: ["lawctopus", "linkedin", "firm_careers", "manual"],
       vacancy_queue_status: ["pending", "approved", "rejected", "duplicate"],
+      vacancy_role_type: [
+        "lateral_hire",
+        "internship",
+        "retainership",
+        "graduate_trainee",
+        "fellowship",
+        "consultant",
+        "support_staff",
+        "other",
+      ],
+      vacancy_scrape_frequency: ["daily", "weekly", "biweekly", "monthly"],
+      vacancy_source_status: ["active", "paused", "broken"],
+      vacancy_source_tier: ["tier_1", "tier_2", "tier_3", "untiered"],
+      vacancy_source_type: [
+        "indian_law_firm",
+        "intl_law_firm",
+        "un_agency",
+        "intl_court",
+        "ifi",
+        "indian_govt",
+        "indian_regulator",
+        "psu",
+        "big4",
+        "corporate_indian",
+        "corporate_mnc",
+        "ngo",
+        "legal_tech",
+        "other",
+      ],
       vacancy_status: ["live", "archived", "deleted"],
       vacancy_tier: [
         "tier_1",
