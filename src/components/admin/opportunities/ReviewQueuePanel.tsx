@@ -111,6 +111,7 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
   const [tickRunning, setTickRunning] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<QueueRow | null>(null);
+  const [previewing, setPreviewing] = useState<QueueRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
