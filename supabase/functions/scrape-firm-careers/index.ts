@@ -362,7 +362,7 @@ serve(async (req) => {
         application_subject: x.application_subject,
         source_posted_date: safeDate(x.source_posted_date),
         source_deadline: safeDate(x.source_deadline),
-        description_excerpt: x.description_excerpt?.slice(0, 500) ?? null,
+        description_excerpt: x.description_excerpt?.slice(0, 240) ?? null,
         last_seen_at: nowIso,
         consecutive_misses: 0,
         lifecycle_status: "active" as const,
