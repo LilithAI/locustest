@@ -64,24 +64,48 @@ Output ONLY via the enrich_vacancy tool.
 const ELIGIBILITY_PROMPT = `You decide if a legal vacancy is open to Indian law students/lawyers.
 
 Rules (apply in order):
+
 ELIGIBLE if any:
 - Source country IN, OR vacancy location contains an Indian city or "India".
 - Description mentions "India-qualified", "Indian bar", "BCI enrolled".
 - Says "remote — India" / "work from India" / "open to India-based candidates".
-- Source type is un_agency / intl_court / ifi AND vacancy doesn't restrict by nationality (India is a UN member state).
+- Source type is un_agency / intl_court / ifi AND the duty station is HQ/global (e.g. New York, Geneva, Vienna, Nairobi, Bangkok, Bonn, The Hague, Rome, Paris, Copenhagen, Addis Ababa, Brussels, Washington), OR the role is fully remote/global with no country-specific duty station.
 
 INELIGIBLE if any:
 - Requires non-Indian qualification not accepting Indian (e.g. "UK qualified solicitor", "must be admitted to NY bar", "Singapore Bar membership essential").
 - Non-Indian location, no remote option, requires local work authorization (e.g. "London office, UK right to work required").
 - Explicitly says "Indian nationals not eligible".
+- Source type is un_agency / intl_court / ifi BUT the duty station is a specific non-India country (Pakistan, Bangladesh, Kenya, etc.). UN/intl country offices hire locally — they are NOT open to Indian applicants even though the agency is multilateral.
 
 AMBIGUOUS if:
-- International role with no clear nationality/qualification restriction stated.
+- International role with no clear nationality/qualification restriction stated and no specific duty station.
 - Foreign location but fully remote with no location specified.
 - Big Law overseas role that doesn't say UK/US qualification but typically requires it.
 - Confidence below 0.7.
 
 Always return a short reason. Output ONLY via the classify tool.`;
+
+// Belt-and-braces post-filter: if the vacancy's location names a specific non-India country
+// (and isn't an UN/intl HQ city), force ineligible. Catches classifier false-positives.
+function forceLocalHireIneligible(
+  location: string | null,
+  isRemote: boolean | null,
+  sourceType: string,
+): { ineligible: boolean; reason?: string } {
+  if (!location) return { ineligible: false };
+  const loc = location.toLowerCase();
+  if (loc.includes("india")) return { ineligible: false };
+  if (isRemote) return { ineligible: false };
+  if (INTL_HQ_CITIES.some((c) => loc.includes(c))) return { ineligible: false };
+  // Only apply this guard for source types where we'd otherwise be permissive.
+  const permissiveSources = ["un_agency", "intl_court", "ifi"];
+  if (!permissiveSources.includes(sourceType)) return { ineligible: false };
+  const matched = NON_INDIA_COUNTRIES.find((c) => loc.includes(c));
+  if (matched) {
+    return { ineligible: true, reason: `Local-hire duty station (${matched}); not open to Indian applicants.` };
+  }
+  return { ineligible: false };
+}
 
 interface ScrapeBody { source_id: string }
 
