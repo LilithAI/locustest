@@ -14,6 +14,29 @@ const corsHeaders = {
 const FIRECRAWL_V2 = "https://api.firecrawl.dev/v2";
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
+const MAX_DETAIL_FETCHES = 15;
+
+// UN/intl HQ cities where postings are typically open to all member-state nationals (incl. India).
+const INTL_HQ_CITIES = [
+  "new york","geneva","vienna","nairobi","bangkok","bonn","the hague",
+  "rome","paris","copenhagen","addis ababa","brussels","washington",
+  "montreal","istanbul","jakarta",
+];
+// Common non-India country tokens that indicate a local-hire duty station.
+const NON_INDIA_COUNTRIES = [
+  "pakistan","bangladesh","sri lanka","nepal","bhutan","maldives","afghanistan",
+  "kenya","ethiopia","uganda","tanzania","south sudan","sudan","somalia","nigeria",
+  "ghana","rwanda","drc","congo","myanmar","thailand","vietnam","cambodia","laos",
+  "philippines","indonesia","malaysia","singapore","japan","south korea","china",
+  "uk","united kingdom","england","scotland","wales","ireland","france","germany",
+  "spain","italy","netherlands","belgium","sweden","norway","denmark","finland",
+  "switzerland","austria","poland","portugal","greece","turkey","ukraine","russia",
+  "usa","united states","canada","mexico","brazil","argentina","chile","colombia",
+  "peru","venezuela","australia","new zealand","uae","dubai","abu dhabi","qatar",
+  "saudi arabia","oman","kuwait","bahrain","jordan","lebanon","israel","palestine",
+  "iraq","iran","syria","yemen","egypt","morocco","tunisia","algeria","libya",
+  "south africa",
+];
 
 const EXTRACTION_PROMPT = `You extract legal job vacancies from an employer's careers page (markdown).
 
@@ -24,31 +47,65 @@ RULES:
 - Return [] if there are no concrete openings.
 - role_type values: lateral_hire, internship, retainership, graduate_trainee, fellowship, consultant, support_staff, other.
 - application_mode values: external_url, email, onsite_form, ats_redirect, unclear.
-- description_full: a DETAILED description (800-2500 chars) summarising the role. Cover, when present in the source: what the role is about, key responsibilities, required qualifications / PQE / skills, eligibility nuances, location/remote setup, compensation/perks, application instructions, and any deadlines. Use short paragraphs and preserve bullet points (use "- " prefix). Do NOT invent facts. If the source is thin, write a shorter honest summary rather than padding.
+- detail_url: if each role on this listing page links to its OWN detail page (e.g. "/opportunities/12345", "/jobs/abc-counsel"), return the absolute URL. If the markdown only shows a relative path, prepend the source's origin. If no per-role link exists, return null.
+- description_full: a DETAILED description (800-2500 chars) summarising the role. Cover, when present in the source: what the role is about, key responsibilities, required qualifications / PQE / skills, eligibility nuances, location/remote setup, compensation/perks, application instructions, and any deadlines. Use short paragraphs and preserve bullet points (use "- " prefix). Do NOT invent facts. If the source is a thin listing row, return null for description_full and let the detail-page pass fill it in.
 - description_excerpt: a tight ≤220 char one-line teaser for list cards.
+`;
+
+const DETAIL_PROMPT = `You are enriching ONE legal vacancy from its detail page (markdown).
+
+Output ONLY via the enrich_vacancy tool.
+- description_full: 800-2500 chars, faithful to the source. Preserve bullet points with "- ". Cover responsibilities, qualifications, eligibility, location, perks, application instructions, deadlines — only what's literally in the page.
+- description_excerpt: ≤220 char one-line teaser.
+- Fill pqe_min, pqe_max, application_mode, application_target, application_subject, source_deadline ONLY if literally present and not already known. Otherwise return null.
+- Do NOT invent facts. If the page is empty/error/login-wall, return null for description_full.
 `;
 
 const ELIGIBILITY_PROMPT = `You decide if a legal vacancy is open to Indian law students/lawyers.
 
 Rules (apply in order):
+
 ELIGIBLE if any:
 - Source country IN, OR vacancy location contains an Indian city or "India".
 - Description mentions "India-qualified", "Indian bar", "BCI enrolled".
 - Says "remote — India" / "work from India" / "open to India-based candidates".
-- Source type is un_agency / intl_court / ifi AND vacancy doesn't restrict by nationality (India is a UN member state).
+- Source type is un_agency / intl_court / ifi AND the duty station is HQ/global (e.g. New York, Geneva, Vienna, Nairobi, Bangkok, Bonn, The Hague, Rome, Paris, Copenhagen, Addis Ababa, Brussels, Washington), OR the role is fully remote/global with no country-specific duty station.
 
 INELIGIBLE if any:
 - Requires non-Indian qualification not accepting Indian (e.g. "UK qualified solicitor", "must be admitted to NY bar", "Singapore Bar membership essential").
 - Non-Indian location, no remote option, requires local work authorization (e.g. "London office, UK right to work required").
 - Explicitly says "Indian nationals not eligible".
+- Source type is un_agency / intl_court / ifi BUT the duty station is a specific non-India country (Pakistan, Bangladesh, Kenya, etc.). UN/intl country offices hire locally — they are NOT open to Indian applicants even though the agency is multilateral.
 
 AMBIGUOUS if:
-- International role with no clear nationality/qualification restriction stated.
+- International role with no clear nationality/qualification restriction stated and no specific duty station.
 - Foreign location but fully remote with no location specified.
 - Big Law overseas role that doesn't say UK/US qualification but typically requires it.
 - Confidence below 0.7.
 
 Always return a short reason. Output ONLY via the classify tool.`;
+
+// Belt-and-braces post-filter: if the vacancy's location names a specific non-India country
+// (and isn't an UN/intl HQ city), force ineligible. Catches classifier false-positives.
+function forceLocalHireIneligible(
+  location: string | null,
+  isRemote: boolean | null,
+  sourceType: string,
+): { ineligible: boolean; reason?: string } {
+  if (!location) return { ineligible: false };
+  const loc = location.toLowerCase();
+  if (loc.includes("india")) return { ineligible: false };
+  if (isRemote) return { ineligible: false };
+  if (INTL_HQ_CITIES.some((c) => loc.includes(c))) return { ineligible: false };
+  // Only apply this guard for source types where we'd otherwise be permissive.
+  const permissiveSources = ["un_agency", "intl_court", "ifi"];
+  if (!permissiveSources.includes(sourceType)) return { ineligible: false };
+  const matched = NON_INDIA_COUNTRIES.find((c) => loc.includes(c));
+  if (matched) {
+    return { ineligible: true, reason: `Local-hire duty station (${matched}); not open to Indian applicants.` };
+  }
+  return { ineligible: false };
+}
 
 interface ScrapeBody { source_id: string }
 
@@ -87,6 +144,7 @@ interface ExtractedVacancy {
   source_deadline: string | null;
   description_excerpt: string | null;
   description_full: string | null;
+  detail_url: string | null;
 }
 
 async function aiCall(body: unknown, lovableKey: string): Promise<any> {
@@ -137,6 +195,7 @@ async function aiExtract(markdown: string, sourceName: string, lovableKey: strin
                   source_deadline: { type: ["string", "null"] },
                   description_excerpt: { type: ["string", "null"] },
                   description_full: { type: ["string", "null"] },
+                  detail_url: { type: ["string", "null"] },
                 },
                 required: ["role_title"],
                 additionalProperties: false,
@@ -153,6 +212,67 @@ async function aiExtract(markdown: string, sourceName: string, lovableKey: strin
   const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
   if (!args) return [];
   try { return (JSON.parse(args).vacancies ?? []) as ExtractedVacancy[]; } catch { return []; }
+}
+
+interface DetailEnrichment {
+  description_full: string | null;
+  description_excerpt: string | null;
+  pqe_min: number | null;
+  pqe_max: number | null;
+  application_mode: string | null;
+  application_target: string | null;
+  application_subject: string | null;
+  source_deadline: string | null;
+}
+
+function sameOrigin(a: string, b: string): boolean {
+  try {
+    const ua = new URL(a);
+    const ub = new URL(b);
+    const ha = ua.hostname.split(".").slice(-2).join(".");
+    const hb = ub.hostname.split(".").slice(-2).join(".");
+    return ha === hb;
+  } catch { return false; }
+}
+
+function resolveDetailUrl(detail: string, sourceUrl: string): string | null {
+  try { return new URL(detail, sourceUrl).toString(); } catch { return null; }
+}
+
+async function aiEnrichDetail(markdown: string, role: string, lovableKey: string): Promise<DetailEnrichment | null> {
+  const truncated = markdown.length > 18000 ? markdown.slice(0, 18000) : markdown;
+  const data = await aiCall({
+    model: MODEL,
+    messages: [
+      { role: "system", content: DETAIL_PROMPT },
+      { role: "user", content: `ROLE: ${role}\n\nDETAIL PAGE MARKDOWN:\n\n${truncated}` },
+    ],
+    tools: [{
+      type: "function",
+      function: {
+        name: "enrich_vacancy",
+        parameters: {
+          type: "object",
+          properties: {
+            description_full: { type: ["string", "null"] },
+            description_excerpt: { type: ["string", "null"] },
+            pqe_min: { type: ["number", "null"] },
+            pqe_max: { type: ["number", "null"] },
+            application_mode: { type: ["string", "null"] },
+            application_target: { type: ["string", "null"] },
+            application_subject: { type: ["string", "null"] },
+            source_deadline: { type: ["string", "null"] },
+          },
+          required: ["description_full"],
+          additionalProperties: false,
+        },
+      },
+    }],
+    tool_choice: { type: "function", function: { name: "enrich_vacancy" } },
+  }, lovableKey);
+  const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+  if (!args) return null;
+  try { return JSON.parse(args) as DetailEnrichment; } catch { return null; }
 }
 
 interface EligibilityResult {
@@ -335,12 +455,61 @@ serve(async (req) => {
     // Process each extracted vacancy
     const seenHashes = new Set<string>();
     let inserted = 0, updated = 0, duplicates = 0;
+    let detailFetches = 0;
     const nowIso = new Date().toISOString();
 
     for (const x of extracted) {
       if (!x.role_title?.trim()) continue;
       const hash = dedupeHash(source.id, x.role_title, x.location);
       seenHashes.add(hash);
+
+      // Pass-1 eligibility classification (cheap, decides if pass-2 detail fetch is worth it)
+      let eligibility: EligibilityResult = { eligibility: "ambiguous", reason: "not classified", confidence: 0 };
+      try {
+        eligibility = await classifyEligibility(x, source.country, source.source_type, LOVABLE_API_KEY);
+      } catch (e) {
+        logLines.push(`classifier err: ${e instanceof Error ? e.message : ""}`);
+      }
+
+      // Belt-and-braces: force ineligible for non-India duty stations on UN/intl sources
+      const guard = forceLocalHireIneligible(x.location, x.is_remote, source.source_type);
+      if (guard.ineligible) {
+        eligibility = { eligibility: "ineligible", reason: guard.reason ?? "non-India duty station", confidence: 0.95 };
+      }
+
+      // Pass-2: enrich description from detail page (skip for ineligible to save credits)
+      if (
+        eligibility.eligibility !== "ineligible" &&
+        !x.description_full &&
+        x.detail_url &&
+        detailFetches < MAX_DETAIL_FETCHES
+      ) {
+        const resolved = resolveDetailUrl(x.detail_url, source.url);
+        if (resolved && sameOrigin(resolved, source.url) && resolved !== source.url) {
+          try {
+            detailFetches++;
+            const detailMd = await firecrawlScrape(resolved, FIRECRAWL_API_KEY);
+            const enr = await aiEnrichDetail(detailMd, x.role_title, LOVABLE_API_KEY);
+            if (enr) {
+              if (enr.description_full) x.description_full = enr.description_full;
+              if (enr.description_excerpt && !x.description_excerpt) x.description_excerpt = enr.description_excerpt;
+              if (enr.pqe_min != null && x.pqe_min == null) x.pqe_min = enr.pqe_min;
+              if (enr.pqe_max != null && x.pqe_max == null) x.pqe_max = enr.pqe_max;
+              if (enr.application_mode && !x.application_mode) x.application_mode = enr.application_mode;
+              if (enr.application_target && !x.application_target) x.application_target = enr.application_target;
+              if (enr.application_subject && !x.application_subject) x.application_subject = enr.application_subject;
+              if (enr.source_deadline && !x.source_deadline) x.source_deadline = enr.source_deadline;
+              logLines.push(`detail OK ${enr.description_full?.length ?? 0} chars — ${x.role_title.slice(0, 50)}`);
+            } else {
+              logLines.push(`detail EMPTY — ${x.role_title.slice(0, 50)}`);
+            }
+          } catch (e) {
+            logLines.push(`detail ERR ${e instanceof Error ? e.message.slice(0, 80) : ""} — ${x.role_title.slice(0, 50)}`);
+          }
+        } else {
+          logLines.push(`detail SKIP cross-origin — ${x.role_title.slice(0, 50)}`);
+        }
+      }
 
       const { data: existing } = await admin
         .from("vacancy_review_queue")
@@ -369,31 +538,18 @@ serve(async (req) => {
       };
 
       if (existing) {
-        // Re-run classifier only if no manual override
-        let eligPatch: Record<string, unknown> = {};
-        if (!existing.manual_eligibility_override) {
-          try {
-            const elig = await classifyEligibility(x, source.country, source.source_type, LOVABLE_API_KEY);
-            eligPatch = {
-              eligibility_india: elig.eligibility,
-              eligibility_reason: elig.reason,
-              eligibility_confidence: elig.confidence,
-            };
-          } catch (e) {
-            logLines.push(`classifier err on update: ${e instanceof Error ? e.message : ""}`);
-          }
-        }
-        await admin.from("vacancy_review_queue").update({ ...baseFields, ...eligPatch }).eq("id", existing.id);
+        const eligPatch = existing.manual_eligibility_override ? {} : {
+          eligibility_india: eligibility.eligibility,
+          eligibility_reason: eligibility.reason,
+          eligibility_confidence: eligibility.confidence,
+        };
+        await admin.from("vacancy_review_queue").update({
+          ...baseFields,
+          ai_extracted: x as unknown as Record<string, unknown>,
+          ...eligPatch,
+        }).eq("id", existing.id);
         duplicates++; updated++;
         continue;
-      }
-
-      // New vacancy — classify
-      let eligibility: EligibilityResult = { eligibility: "ambiguous", reason: "not classified", confidence: 0 };
-      try {
-        eligibility = await classifyEligibility(x, source.country, source.source_type, LOVABLE_API_KEY);
-      } catch (e) {
-        logLines.push(`classifier err on new: ${e instanceof Error ? e.message : ""}`);
       }
 
       const { error: insErr } = await admin.from("vacancy_review_queue").insert({
@@ -414,6 +570,7 @@ serve(async (req) => {
       if (!insErr) inserted++;
       else logLines.push(`insert err: ${insErr.message}`);
     }
+    logLines.push(`pass-2 detail fetches: ${detailFetches}`);
 
     // Lifecycle: increment misses for vacancies in queue from this source not seen this run
     const { data: existingForSource } = await admin
