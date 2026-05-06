@@ -167,13 +167,15 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
   const ambiguous = rows.filter((r) => r.eligibility_india === "ambiguous" || r.eligibility_india === "unknown");
   const ineligible = rows.filter((r) => r.eligibility_india === "ineligible");
 
-  const tickAll = async () => {
+  const tickAll = async (force = false) => {
     setTickRunning(true);
     try {
-      const { data, error } = await supabase.functions.invoke("scrape-tick", { body: {} });
+      const { data, error } = await supabase.functions.invoke("scrape-tick", {
+        body: force ? { force: true } : {},
+      });
       if (error) throw error;
       const d = data as { processed?: number };
-      toast.success(`Tick processed ${d.processed ?? 0} sources`);
+      toast.success(`${force ? "Scrape all" : "Tick"} processed ${d.processed ?? 0} sources`);
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Tick failed");
@@ -200,9 +202,13 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
           🏢 Sources ({sources.length})
         </Button>
         <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" variant="outline" disabled={tickRunning} onClick={() => void tickAll()} title="Run scrape-tick now (processes due sources)">
+          <Button size="sm" variant="outline" disabled={tickRunning} onClick={() => void tickAll(false)} title="Run scrape-tick now (processes due sources)">
             {tickRunning ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
             Run tick
+          </Button>
+          <Button size="sm" variant="default" disabled={tickRunning} onClick={() => void tickAll(true)} title="Force-scrape every active source, ignoring frequency">
+            {tickRunning ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
+            Scrape all
           </Button>
           <Button size="sm" variant="ghost" onClick={() => void load()}>
             <RefreshCw size={14} className="mr-1" /> Refresh

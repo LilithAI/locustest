@@ -17,6 +17,7 @@ const FREQ_HOURS: Record<string, number> = {
 };
 
 const MAX_PER_TICK = 8;
+const MAX_PER_FORCE = 200;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -24,6 +25,14 @@ serve(async (req) => {
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supa = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+  let force = false;
+  let limit: number | undefined;
+  if (req.method === "POST") {
+    const body = await req.json().catch(() => ({}));
+    force = !!body.force;
+    if (typeof body.limit === "number") limit = body.limit;
+  }
 
   const { data: sources, error } = await supa
     .from("firm_careers_sources")
@@ -38,12 +47,14 @@ serve(async (req) => {
   }
 
   const now = Date.now();
+  const cap = limit ?? (force ? MAX_PER_FORCE : MAX_PER_TICK);
   const due = (sources ?? []).filter((s) => {
+    if (force) return true;
     const hrs = FREQ_HOURS[s.scrape_frequency as string] ?? 168;
     if (!s.last_scraped_at) return true;
     const ageHrs = (now - new Date(s.last_scraped_at).getTime()) / 36e5;
     return ageHrs >= hrs;
-  }).slice(0, MAX_PER_TICK);
+  }).slice(0, cap);
 
   const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
   for (const s of due) {
