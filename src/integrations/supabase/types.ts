@@ -473,6 +473,120 @@ export type Database = {
           },
         ]
       }
+      email_send_log: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          message_id: string | null
+          metadata: Json | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          recipient_email?: string
+          status?: string
+          template_name?: string
+        }
+        Relationships: []
+      }
+      email_send_state: {
+        Row: {
+          dedupe_key: string | null
+          id: string
+          last_sent_at: string
+          recipient_email: string
+          send_count: number
+          template_name: string
+        }
+        Insert: {
+          dedupe_key?: string | null
+          id?: string
+          last_sent_at?: string
+          recipient_email: string
+          send_count?: number
+          template_name: string
+        }
+        Update: {
+          dedupe_key?: string | null
+          id?: string
+          last_sent_at?: string
+          recipient_email?: string
+          send_count?: number
+          template_name?: string
+        }
+        Relationships: []
+      }
+      email_suppression: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          metadata: Json | null
+          reason: string
+          template_scope: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          metadata?: Json | null
+          reason: string
+          template_scope?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          metadata?: Json | null
+          reason?: string
+          template_scope?: string | null
+        }
+        Relationships: []
+      }
+      email_unsubscribe_tokens: {
+        Row: {
+          created_at: string
+          email: string
+          template_scope: string | null
+          token: string
+          used_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          template_scope?: string | null
+          token: string
+          used_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          template_scope?: string | null
+          token?: string
+          used_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       feature_votes: {
         Row: {
           created_at: string
@@ -501,6 +615,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profile_applications: {
+        Row: {
+          applied_on: string
+          created_at: string
+          firm_name_snapshot: string
+          id: string
+          method: Database["public"]["Enums"]["application_method"]
+          notes: string | null
+          role: string
+          status: Database["public"]["Enums"]["application_status"]
+          status_updated_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          applied_on: string
+          created_at?: string
+          firm_name_snapshot: string
+          id?: string
+          method?: Database["public"]["Enums"]["application_method"]
+          notes?: string | null
+          role: string
+          status?: Database["public"]["Enums"]["application_status"]
+          status_updated_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          applied_on?: string
+          created_at?: string
+          firm_name_snapshot?: string
+          id?: string
+          method?: Database["public"]["Enums"]["application_method"]
+          notes?: string | null
+          role?: string
+          status?: Database["public"]["Enums"]["application_status"]
+          status_updated_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       profile_internships: {
         Row: {
@@ -621,6 +777,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          applications_count: number
           avatar_url: string | null
           bar_leaderboard_opt_out: boolean
           bio: string | null
@@ -637,6 +794,7 @@ export type Database = {
           username: string
         }
         Insert: {
+          applications_count?: number
           avatar_url?: string | null
           bar_leaderboard_opt_out?: boolean
           bio?: string | null
@@ -653,6 +811,7 @@ export type Database = {
           username: string
         }
         Update: {
+          applications_count?: number
           avatar_url?: string | null
           bar_leaderboard_opt_out?: boolean
           bio?: string | null
@@ -667,6 +826,36 @@ export type Database = {
           id?: string
           subjects_of_interest?: string[]
           username?: string
+        }
+        Relationships: []
+      }
+      update_broadcasts: {
+        Row: {
+          body_markdown: string
+          id: string
+          metadata: Json
+          recipient_count: number
+          sent_at: string
+          sent_by: string
+          subject: string
+        }
+        Insert: {
+          body_markdown: string
+          id?: string
+          metadata?: Json
+          recipient_count?: number
+          sent_at?: string
+          sent_by: string
+          subject: string
+        }
+        Update: {
+          body_markdown?: string
+          id?: string
+          metadata?: Json
+          recipient_count?: number
+          sent_at?: string
+          sent_by?: string
+          subject?: string
         }
         Relationships: []
       }
@@ -685,6 +874,60 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      vacancies: {
+        Row: {
+          application_email: string
+          created_at: string
+          created_by: string
+          description: string | null
+          eligibility: string | null
+          expires_at: string
+          firm_name: string
+          id: string
+          location: string | null
+          posted_at: string
+          role: string
+          source_credit: string | null
+          status: Database["public"]["Enums"]["vacancy_status"]
+          stipend: string | null
+          updated_at: string
+        }
+        Insert: {
+          application_email: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          eligibility?: string | null
+          expires_at: string
+          firm_name: string
+          id?: string
+          location?: string | null
+          posted_at?: string
+          role: string
+          source_credit?: string | null
+          status?: Database["public"]["Enums"]["vacancy_status"]
+          stipend?: string | null
+          updated_at?: string
+        }
+        Update: {
+          application_email?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          eligibility?: string | null
+          expires_at?: string
+          firm_name?: string
+          id?: string
+          location?: string | null
+          posted_at?: string
+          role?: string
+          source_credit?: string | null
+          status?: Database["public"]["Enums"]["vacancy_status"]
+          stipend?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -799,6 +1042,48 @@ export type Database = {
           },
         ]
       }
+      profile_applications_needing_nudge: {
+        Row: {
+          applied_on: string | null
+          created_at: string | null
+          firm_name_snapshot: string | null
+          id: string | null
+          method: Database["public"]["Enums"]["application_method"] | null
+          notes: string | null
+          role: string | null
+          status: Database["public"]["Enums"]["application_status"] | null
+          status_updated_at: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          applied_on?: string | null
+          created_at?: string | null
+          firm_name_snapshot?: string | null
+          id?: string | null
+          method?: Database["public"]["Enums"]["application_method"] | null
+          notes?: string | null
+          role?: string | null
+          status?: Database["public"]["Enums"]["application_status"] | null
+          status_updated_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          applied_on?: string | null
+          created_at?: string | null
+          firm_name_snapshot?: string | null
+          id?: string | null
+          method?: Database["public"]["Enums"]["application_method"] | null
+          notes?: string | null
+          role?: string | null
+          status?: Database["public"]["Enums"]["application_status"] | null
+          status_updated_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_email_by_username: { Args: { p_username: string }; Returns: string }
@@ -818,9 +1103,27 @@ export type Database = {
       }
       increment_visit_count: { Args: never; Returns: number }
       is_admin: { Args: { uid: string }; Returns: boolean }
+      vacancies_lifecycle_tick: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      application_method:
+        | "email"
+        | "form"
+        | "referral"
+        | "in_person"
+        | "linkedin"
+        | "other"
+      application_status:
+        | "sent"
+        | "acknowledged"
+        | "interview_scheduled"
+        | "interviewed"
+        | "offer"
+        | "rejected"
+        | "accepted"
+        | "withdrawn"
+        | "no_response"
       bar_area_of_law:
         | "constitutional"
         | "criminal"
@@ -885,6 +1188,7 @@ export type Database = {
         | "quarter_finalist"
         | "participant"
       moot_role: "speaker" | "researcher" | "both"
+      vacancy_status: "live" | "archived" | "deleted"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1013,6 +1317,25 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      application_method: [
+        "email",
+        "form",
+        "referral",
+        "in_person",
+        "linkedin",
+        "other",
+      ],
+      application_status: [
+        "sent",
+        "acknowledged",
+        "interview_scheduled",
+        "interviewed",
+        "offer",
+        "rejected",
+        "accepted",
+        "withdrawn",
+        "no_response",
+      ],
       bar_area_of_law: [
         "constitutional",
         "criminal",
@@ -1084,6 +1407,7 @@ export const Constants = {
         "participant",
       ],
       moot_role: ["speaker", "researcher", "both"],
+      vacancy_status: ["live", "archived", "deleted"],
     },
   },
 } as const
