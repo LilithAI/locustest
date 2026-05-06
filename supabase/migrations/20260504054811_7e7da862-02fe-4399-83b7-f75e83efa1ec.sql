@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.opportunities_lifecycle_tick() FROM PUBLIC, anon, authenticated;

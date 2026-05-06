@@ -1,0 +1,1 @@
+ALTER TABLE public.bar_challenges DISABLE TRIGGER bar_challenges_notify_new_after_iu;

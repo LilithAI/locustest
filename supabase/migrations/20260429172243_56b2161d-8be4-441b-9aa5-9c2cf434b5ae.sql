@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.dispatch_content_notification_test(text, uuid, text) TO postgres, service_role, authenticated, anon;

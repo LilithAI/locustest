@@ -1,0 +1,1 @@
+DELETE FROM public.beta_feedback WHERE tester_name = 'diag2';

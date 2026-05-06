@@ -1,0 +1,1 @@
+UPDATE public.profiles SET display_name = 'locus' WHERE id = '3a7ce47a-d597-470d-b21e-ce27bee27dec';

@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.vacancies_lifecycle_tick() FROM PUBLIC, anon, authenticated;

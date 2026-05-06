@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.increment_visit_count() TO anon, authenticated;

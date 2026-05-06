@@ -1,0 +1,2 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_pace_setter boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS idx_profiles_is_pace_setter ON public.profiles(is_pace_setter) WHERE is_pace_setter = true;
