@@ -1589,6 +1589,7 @@ export type Database = {
           source_credit: string | null
           status: Database["public"]["Enums"]["vacancy_status"]
           stipend: string | null
+          task_brief: string | null
           tier: Database["public"]["Enums"]["vacancy_tier"] | null
           updated_at: string
         }
@@ -1611,6 +1612,7 @@ export type Database = {
           source_credit?: string | null
           status?: Database["public"]["Enums"]["vacancy_status"]
           stipend?: string | null
+          task_brief?: string | null
           tier?: Database["public"]["Enums"]["vacancy_tier"] | null
           updated_at?: string
         }
@@ -1633,6 +1635,7 @@ export type Database = {
           source_credit?: string | null
           status?: Database["public"]["Enums"]["vacancy_status"]
           stipend?: string | null
+          task_brief?: string | null
           tier?: Database["public"]["Enums"]["vacancy_tier"] | null
           updated_at?: string
         }
