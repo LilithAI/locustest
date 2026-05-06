@@ -1,39 +1,56 @@
-## Goal
+## Two problems, one root cause area: the scraper
 
-In the admin Review Queue, let the reviewer see a **demo preview** of how each vacancy will look on the public Opportunities page once promoted — and ensure the AI extracts a **rich, long description** so that preview is meaningful.
+### 1. Why descriptions are empty
 
-## What changes
+Listing pages like `app.unv.org/opportunities`, `jobs.undp.org`, etc. only contain a title + location + deadline per row. The actual job description lives on a **separate detail page** (one click in). Right now `scrape-firm-careers` does a single Firecrawl pass on the listing URL, so the model has nothing to extract from → `description_full` ends up null.
 
-### 1. Richer descriptions from the scraper
+### 2. Why a Pakistan job passes the "India" filter
 
-Update `supabase/functions/scrape-firm-careers/index.ts`:
+The eligibility prompt has this rule:
 
-- Rename the field `description_excerpt` → `description_full` and lift the cap from 500 chars to ~2500 chars.
-- Strengthen the extraction prompt: instruct the model to write a detailed, well-formatted description (responsibilities, eligibility nuances, qualifications, perks) using the source markdown — not a one-liner. Preserve bullet points where present.
-- Keep a separate short `description_excerpt` (≤220 chars) auto-derived for list cards.
-- Both fields persist into `vacancy_review_queue.ai_extracted` so existing rows still work; the promote step already maps `description` to vacancies.
+> ELIGIBLE if … Source type is un_agency / intl_court / ifi AND vacancy doesn't restrict by nationality.
 
-### 2. "Preview as live" demo view in the Review Queue
+The UN Volunteers Pakistan posting is `un_agency` and doesn't say "Indians not eligible", so it gets stamped **eligible** — even though the role is physically based in Pakistan and obviously not for Indian candidates.
 
-In `src/components/admin/opportunities/ReviewQueuePanel.tsx`:
+The rule is too loose: location-bound UN postings (city/country in the location field that isn't India and isn't "remote") should not be auto-eligible just because the agency is multilateral.
 
-- Add an **"Eye" Preview button** on each queue card (next to Reject / Promote).
-- Clicking it opens a new `LivePreviewDialog` that renders the vacancy using the **real public `<VacancyCard>`** component (from `src/components/vacancies/VacancyCard.tsx`), passing a synthesized `Vacancy` object built from the queue row + `ai_extracted` fields (firm, role, location, eligibility, stipend, deadline, tier, description, application URL, posted_at = now, expires_at = now + 30d).
-- Dialog header reads "Preview — this is exactly how it will appear on Opportunities". A footer offers shortcut buttons: **Edit & Promote** (opens existing ReviewDialog) and **Close**.
-- Inside the existing `ReviewDialog`, also embed a smaller live preview pane on the right that updates as the admin edits fields, so they can see the card before hitting Promote.
+---
 
-### 3. Surface the long description in the edit dialog
+## Plan
 
-- The `description` textarea in `ReviewDialog` already exists — bump rows to ~10 and prefill from the new `description_full` (fallback to old `description_excerpt`).
+### A. Two-pass scrape for detailed descriptions
+
+In `supabase/functions/scrape-firm-careers/index.ts`:
+
+1. **Pass 1 — discover.** Keep the current Firecrawl call on the listing URL. Update the extraction tool schema to also return an optional `detail_url` per vacancy (absolute URL of the job detail page when present in the markdown). Tighten the prompt so the model returns the per-row link.
+2. **Pass 2 — enrich.** For each extracted vacancy that has a `detail_url`, fetch that URL via Firecrawl (`onlyMainContent: true`, `waitFor: 1500`) and run a small follow-up AI call that fills in `description_full` (800–2500 chars), `description_excerpt`, plus any of `pqe_min/max`, `application_mode`, `application_target`, `source_deadline` that were missing from pass 1.
+3. **Cost guardrails.**
+   - Cap detail fetches per run at `MAX_DETAIL_FETCHES = 15` (configurable constant). Process eligibility-classified vacancies first; skip pass 2 for ones already marked `ineligible`.
+   - Skip pass 2 if `detail_url` is missing or not on the same registrable domain as the source URL (avoids junk redirects).
+   - On Firecrawl failure for a single detail page, log a line, keep the pass-1 fields, and continue.
+4. **Logging.** Add per-vacancy log lines (`detail OK 1240 chars`, `detail SKIP same-as-listing`, `detail ERR Firecrawl 504`) into `scrape_runs.raw_log` for debugging.
+
+### B. Tighten the India eligibility classifier
+
+Same file, `ELIGIBILITY_PROMPT`:
+
+1. Replace the over-broad un_agency rule with:
+   > Source type is un_agency / intl_court / ifi → mark **eligible** ONLY if the vacancy is (a) HQ / global (e.g. New York, Geneva, Vienna, Nairobi, "global", "remote"), OR (b) located in India, OR (c) explicitly says "open to Indian nationals" / no duty-station restriction. If the vacancy's duty station is a specific non-India country (Pakistan, Bangladesh, Kenya, etc.), mark **ineligible** — those postings are local-hire even when the agency is global.
+2. Add a deterministic post-filter in code (belt-and-braces) before insert:
+   - If `extracted.location` matches a non-India country/city (we already know `source.country`), and the vacancy isn't remote, and the location isn't in a small allow-list of UN HQ cities (`new york`, `geneva`, `vienna`, `nairobi`, `bangkok`, `bonn`, `the hague`, `rome`, `paris`, `copenhagen`, `addis ababa`), force `eligibility = "ineligible"` with reason `"non-India duty station"`.
+3. Keep India-located, remote-global, and HQ postings flowing through unchanged.
+
+### C. No schema/UI changes required
+
+`description_full` already exists on the queue row and the Review/Preview dialog already renders it. Once pass 2 starts populating it, the preview pane will fill in automatically. The `ReviewQueuePanel` filter for "India-eligible" doesn't change — it just gets fewer false positives.
+
+---
+
+## Files touched
+
+- `supabase/functions/scrape-firm-careers/index.ts` — extraction prompt + tool schema (`detail_url`), new `enrichFromDetail()` helper, eligibility prompt update, new `forceLocalHireIneligible()` post-filter.
 
 ## Out of scope
 
-- No DB migration (we reuse `ai_extracted` JSONB).
-- No changes to the public Opportunities page itself.
-- No re-scraping of historical rows; only newly-scraped vacancies will have the richer description. Existing rows still preview cleanly using whatever they have.
-
-## Technical notes
-
-- `VacancyCard` requires a `Vacancy` shape from `@/lib/vacancies`; we'll build a minimal in-memory object (no insert) — pass `application={null}`, `archived={false}`, omit `onApply`/`onDeleted` so action buttons are inert in preview.
-- Wrap the preview card in a non-interactive container (`pointer-events-none` on action buttons via a CSS overlay, or simply leave the buttons live but harmless since no real apply handler is wired).
-- LivePreviewDialog uses the same shadcn `Dialog` already imported in the panel.
+- Re-scraping historical pending rows — new pipeline only affects future scrape runs. If you want, I can add a "Re-enrich descriptions" admin button in a follow-up.
+- Per-source overrides for "this agency genuinely hires Indians remotely" — can be added later via a `firm_careers_sources.eligibility_override` column if you hit edge cases.
