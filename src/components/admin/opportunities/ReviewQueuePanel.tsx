@@ -311,6 +311,9 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
                         <ExternalLink size={14} />
                       </a>
                     </Button>
+                    <Button size="sm" variant="outline" onClick={() => setPreviewing(r)} title="Preview as it will look on Opportunities">
+                      <Eye size={14} className="mr-1" /> Preview
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => reject(r)}>
                       <X size={14} className="mr-1" /> Reject
                     </Button>
