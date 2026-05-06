@@ -14,6 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_events: {
+        Row: {
+          anon_id: string | null
+          country: string | null
+          created_at: string
+          device: string | null
+          event: string
+          id: string
+          ip_hash: string | null
+          path: string | null
+          props: Json
+          referrer: string | null
+          session_id: string | null
+          user_id: string | null
+          utm: Json
+        }
+        Insert: {
+          anon_id?: string | null
+          country?: string | null
+          created_at?: string
+          device?: string | null
+          event: string
+          id?: string
+          ip_hash?: string | null
+          path?: string | null
+          props?: Json
+          referrer?: string | null
+          session_id?: string | null
+          user_id?: string | null
+          utm?: Json
+        }
+        Update: {
+          anon_id?: string | null
+          country?: string | null
+          created_at?: string
+          device?: string | null
+          event?: string
+          id?: string
+          ip_hash?: string | null
+          path?: string | null
+          props?: Json
+          referrer?: string | null
+          session_id?: string | null
+          user_id?: string | null
+          utm?: Json
+        }
+        Relationships: []
+      }
+      analytics_salt: {
+        Row: {
+          created_at: string
+          day: string
+          salt: string
+        }
+        Insert: {
+          created_at?: string
+          day: string
+          salt?: string
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          salt?: string
+        }
+        Relationships: []
+      }
       bar_ai_generations: {
         Row: {
           area_of_law_hint:
@@ -473,6 +539,140 @@ export type Database = {
           },
         ]
       }
+      beta_feedback: {
+        Row: {
+          created_at: string
+          general_notes: string | null
+          id: string
+          overall_score: number | null
+          responses: Json
+          tester_code: string | null
+          tester_email: string | null
+          tester_id: string | null
+          tester_name: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          general_notes?: string | null
+          id?: string
+          overall_score?: number | null
+          responses?: Json
+          tester_code?: string | null
+          tester_email?: string | null
+          tester_id?: string | null
+          tester_name: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          general_notes?: string | null
+          id?: string
+          overall_score?: number | null
+          responses?: Json
+          tester_code?: string | null
+          tester_email?: string | null
+          tester_id?: string | null
+          tester_name?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beta_feedback_tester_id_fkey"
+            columns: ["tester_id"]
+            isOneToOne: false
+            referencedRelation: "beta_testers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      beta_feedback_round2: {
+        Row: {
+          created_at: string
+          general_notes: string | null
+          id: string
+          nps_score: number | null
+          responses: Json
+          tester_email: string | null
+          tester_id: string | null
+          tester_name: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          general_notes?: string | null
+          id?: string
+          nps_score?: number | null
+          responses?: Json
+          tester_email?: string | null
+          tester_id?: string | null
+          tester_name: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          general_notes?: string | null
+          id?: string
+          nps_score?: number | null
+          responses?: Json
+          tester_email?: string | null
+          tester_id?: string | null
+          tester_name?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      beta_testers: {
+        Row: {
+          claimed_at: string
+          code: string | null
+          created_at: string
+          display_name: string
+          email: string | null
+          feedback_id: string | null
+          id: string
+          intro_line_index: number
+          is_public: boolean
+          personal_note: string | null
+          round2_submitted_at: string | null
+          slot_number: number
+          submitted_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          claimed_at?: string
+          code?: string | null
+          created_at?: string
+          display_name: string
+          email?: string | null
+          feedback_id?: string | null
+          id?: string
+          intro_line_index?: number
+          is_public?: boolean
+          personal_note?: string | null
+          round2_submitted_at?: string | null
+          slot_number: number
+          submitted_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          claimed_at?: string
+          code?: string | null
+          created_at?: string
+          display_name?: string
+          email?: string | null
+          feedback_id?: string | null
+          id?: string
+          intro_line_index?: number
+          is_public?: boolean
+          personal_note?: string | null
+          round2_submitted_at?: string | null
+          slot_number?: number
+          submitted_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       cfps: {
         Row: {
           co_authorship_allowed: boolean
@@ -617,6 +817,48 @@ export type Database = {
         }
         Relationships: []
       }
+      cv_analyses: {
+        Row: {
+          analysis: Json
+          completion_tokens: number | null
+          created_at: string
+          cv_storage_path: string
+          duration_ms: number | null
+          id: string
+          model: string
+          overall_score: number
+          prompt_tokens: number | null
+          user_id: string
+          verdict: string
+        }
+        Insert: {
+          analysis?: Json
+          completion_tokens?: number | null
+          created_at?: string
+          cv_storage_path: string
+          duration_ms?: number | null
+          id?: string
+          model: string
+          overall_score: number
+          prompt_tokens?: number | null
+          user_id: string
+          verdict: string
+        }
+        Update: {
+          analysis?: Json
+          completion_tokens?: number | null
+          created_at?: string
+          cv_storage_path?: string
+          duration_ms?: number | null
+          id?: string
+          model?: string
+          overall_score?: number
+          prompt_tokens?: number | null
+          user_id?: string
+          verdict?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -674,6 +916,27 @@ export type Database = {
           recipient_email?: string
           send_count?: number
           template_name?: string
+        }
+        Relationships: []
+      }
+      email_stream_unsubscribes: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          stream: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          stream: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          stream?: string
         }
         Relationships: []
       }
@@ -934,6 +1197,33 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_log: {
+        Row: {
+          entity_id: string | null
+          id: string
+          recipient_email: string
+          sent_at: string
+          stream: string
+          user_id: string | null
+        }
+        Insert: {
+          entity_id?: string | null
+          id?: string
+          recipient_email: string
+          sent_at?: string
+          stream: string
+          user_id?: string | null
+        }
+        Update: {
+          entity_id?: string | null
+          id?: string
+          recipient_email?: string
+          sent_at?: string
+          stream?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profile_applications: {
         Row: {
           applied_on: string
@@ -1055,6 +1345,30 @@ export type Database = {
           },
         ]
       }
+      profile_playbook_progress: {
+        Row: {
+          completed_at: string | null
+          guide_slug: string
+          last_read_at: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          guide_slug: string
+          last_read_at?: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          guide_slug?: string
+          last_read_at?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profile_publications: {
         Row: {
           created_at: string
@@ -1159,33 +1473,81 @@ export type Database = {
         }
         Relationships: []
       }
+      suppressed_emails: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          metadata: Json | null
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          metadata?: Json | null
+          reason: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          metadata?: Json | null
+          reason?: string
+        }
+        Relationships: []
+      }
       update_broadcasts: {
         Row: {
+          body_html: string | null
           body_markdown: string
+          created_at: string
+          created_by: string | null
+          cta_label: string | null
+          cta_url: string | null
           id: string
           metadata: Json
+          preheader: string | null
           recipient_count: number
           sent_at: string
           sent_by: string
+          status: string | null
           subject: string
+          updated_at: string
         }
         Insert: {
+          body_html?: string | null
           body_markdown: string
+          created_at?: string
+          created_by?: string | null
+          cta_label?: string | null
+          cta_url?: string | null
           id?: string
           metadata?: Json
+          preheader?: string | null
           recipient_count?: number
           sent_at?: string
           sent_by: string
+          status?: string | null
           subject: string
+          updated_at?: string
         }
         Update: {
+          body_html?: string | null
           body_markdown?: string
+          created_at?: string
+          created_by?: string | null
+          cta_label?: string | null
+          cta_url?: string | null
           id?: string
           metadata?: Json
+          preheader?: string | null
           recipient_count?: number
           sent_at?: string
           sent_by?: string
+          status?: string | null
           subject?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1209,7 +1571,9 @@ export type Database = {
       }
       vacancies: {
         Row: {
-          application_email: string
+          application_email: string | null
+          application_mode: Database["public"]["Enums"]["vacancy_application_mode"]
+          application_url: string | null
           created_at: string
           created_by: string
           description: string | null
@@ -1218,15 +1582,21 @@ export type Database = {
           firm_name: string
           id: string
           location: string | null
+          opportunity_type: Database["public"]["Enums"]["vacancy_opportunity_type"]
           posted_at: string
+          practice_area: string | null
           role: string
           source_credit: string | null
           status: Database["public"]["Enums"]["vacancy_status"]
           stipend: string | null
+          task_brief: string | null
+          tier: Database["public"]["Enums"]["vacancy_tier"] | null
           updated_at: string
         }
         Insert: {
-          application_email: string
+          application_email?: string | null
+          application_mode?: Database["public"]["Enums"]["vacancy_application_mode"]
+          application_url?: string | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -1235,15 +1605,21 @@ export type Database = {
           firm_name: string
           id?: string
           location?: string | null
+          opportunity_type?: Database["public"]["Enums"]["vacancy_opportunity_type"]
           posted_at?: string
+          practice_area?: string | null
           role: string
           source_credit?: string | null
           status?: Database["public"]["Enums"]["vacancy_status"]
           stipend?: string | null
+          task_brief?: string | null
+          tier?: Database["public"]["Enums"]["vacancy_tier"] | null
           updated_at?: string
         }
         Update: {
-          application_email?: string
+          application_email?: string | null
+          application_mode?: Database["public"]["Enums"]["vacancy_application_mode"]
+          application_url?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
@@ -1252,11 +1628,15 @@ export type Database = {
           firm_name?: string
           id?: string
           location?: string | null
+          opportunity_type?: Database["public"]["Enums"]["vacancy_opportunity_type"]
           posted_at?: string
+          practice_area?: string | null
           role?: string
           source_credit?: string | null
           status?: Database["public"]["Enums"]["vacancy_status"]
           stipend?: string | null
+          task_brief?: string | null
+          tier?: Database["public"]["Enums"]["vacancy_tier"] | null
           updated_at?: string
         }
         Relationships: []
@@ -1476,8 +1856,136 @@ export type Database = {
       }
     }
     Functions: {
+      analytics_devices: {
+        Args: { p_hours?: number }
+        Returns: {
+          device: string
+          sessions: number
+        }[]
+      }
+      analytics_install_funnel: { Args: { p_days?: number }; Returns: Json }
+      analytics_recent: {
+        Args: { p_limit?: number }
+        Returns: {
+          anon_id: string
+          created_at: string
+          event: string
+          id: string
+          path: string
+          props: Json
+          user_id: string
+        }[]
+      }
+      analytics_summary: { Args: { p_hours?: number }; Returns: Json }
+      analytics_timeseries: {
+        Args: { p_days?: number }
+        Returns: {
+          dau: number
+          day: string
+          page_views: number
+          signups: number
+        }[]
+      }
+      analytics_top_paths: {
+        Args: { p_hours?: number; p_limit?: number }
+        Returns: {
+          path: string
+          uniques: number
+          views: number
+        }[]
+      }
+      analytics_top_referrers: {
+        Args: { p_days?: number; p_limit?: number }
+        Returns: {
+          referrer: string
+          sessions: number
+        }[]
+      }
+      claim_beta_slot: {
+        Args: {
+          p_email: string
+          p_is_public: boolean
+          p_name: string
+          p_user_id: string
+        }
+        Returns: {
+          claimed_at: string
+          code: string | null
+          created_at: string
+          display_name: string
+          email: string | null
+          feedback_id: string | null
+          id: string
+          intro_line_index: number
+          is_public: boolean
+          personal_note: string | null
+          round2_submitted_at: string | null
+          slot_number: number
+          submitted_at: string | null
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "beta_testers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      current_analytics_salt: { Args: never; Returns: string }
+      find_round2_tester: {
+        Args: { p_email: string }
+        Returns: {
+          display_name: string
+          email: string
+          id: string
+          round2_submitted_at: string
+          submitted_at: string
+        }[]
+      }
+      find_user_for_admin: {
+        Args: { p_query: string }
+        Returns: {
+          display_name: string
+          email: string
+          id: string
+          roles: string[]
+          username: string
+        }[]
+      }
       get_app_dashboard: { Args: { p_user_id: string }; Returns: Json }
       get_bar_dashboard: { Args: { p_user_id: string }; Returns: Json }
+      get_beta_tester_self: {
+        Args: { p_id: string }
+        Returns: {
+          claimed_at: string
+          code: string | null
+          created_at: string
+          display_name: string
+          email: string | null
+          feedback_id: string | null
+          id: string
+          intro_line_index: number
+          is_public: boolean
+          personal_note: string | null
+          round2_submitted_at: string | null
+          slot_number: number
+          submitted_at: string | null
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "beta_testers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      get_beta_tester_totals: {
+        Args: never
+        Returns: {
+          total_claimed: number
+          total_submitted: number
+        }[]
+      }
       get_email_by_username: { Args: { p_username: string }; Returns: string }
       get_feature_vote_counts: {
         Args: never
@@ -1503,6 +2011,13 @@ export type Database = {
         }[]
       }
       get_public_profile: { Args: { p_username: string }; Returns: Json }
+      grant_role: {
+        Args: {
+          p_role: Database["public"]["Enums"]["app_role"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       has_admin_scope: {
         Args: { scope: Database["public"]["Enums"]["app_role"]; uid: string }
         Returns: boolean
@@ -1516,7 +2031,30 @@ export type Database = {
       }
       increment_visit_count: { Args: never; Returns: number }
       is_admin: { Args: { uid: string }; Returns: boolean }
+      list_admins: {
+        Args: never
+        Returns: {
+          display_name: string
+          email: string
+          id: string
+          is_self: boolean
+          roles: string[]
+          username: string
+        }[]
+      }
+      mark_beta_tester_round2_submitted: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      mark_beta_tester_submitted: { Args: { p_id: string }; Returns: undefined }
       opportunities_lifecycle_tick: { Args: never; Returns: undefined }
+      revoke_role: {
+        Args: {
+          p_role: Database["public"]["Enums"]["app_role"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       vacancies_lifecycle_tick: { Args: never; Returns: undefined }
     }
     Enums: {
@@ -1535,6 +2073,7 @@ export type Database = {
         | "in_person"
         | "linkedin"
         | "other"
+        | "external"
       application_status:
         | "sent"
         | "acknowledged"
@@ -1624,9 +2163,20 @@ export type Database = {
         | "participant"
       moot_role: "speaker" | "researcher" | "both"
       opp_status: "live" | "archived"
+      vacancy_application_mode: "email" | "external_url"
+      vacancy_opportunity_type: "internship" | "job"
       vacancy_queue_source: "lawctopus" | "linkedin" | "firm_careers" | "manual"
       vacancy_queue_status: "pending" | "approved" | "rejected" | "duplicate"
       vacancy_status: "live" | "archived" | "deleted"
+      vacancy_tier:
+        | "tier_1"
+        | "tier_2"
+        | "tier_3"
+        | "boutique"
+        | "in_house"
+        | "psu"
+        | "big_4"
+        | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1770,6 +2320,7 @@ export const Constants = {
         "in_person",
         "linkedin",
         "other",
+        "external",
       ],
       application_status: [
         "sent",
@@ -1869,9 +2420,21 @@ export const Constants = {
       ],
       moot_role: ["speaker", "researcher", "both"],
       opp_status: ["live", "archived"],
+      vacancy_application_mode: ["email", "external_url"],
+      vacancy_opportunity_type: ["internship", "job"],
       vacancy_queue_source: ["lawctopus", "linkedin", "firm_careers", "manual"],
       vacancy_queue_status: ["pending", "approved", "rejected", "duplicate"],
       vacancy_status: ["live", "archived", "deleted"],
+      vacancy_tier: [
+        "tier_1",
+        "tier_2",
+        "tier_3",
+        "boutique",
+        "in_house",
+        "psu",
+        "big_4",
+        "other",
+      ],
     },
   },
 } as const
