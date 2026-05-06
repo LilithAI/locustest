@@ -144,6 +144,7 @@ interface ExtractedVacancy {
   source_deadline: string | null;
   description_excerpt: string | null;
   description_full: string | null;
+  detail_url: string | null;
 }
 
 async function aiCall(body: unknown, lovableKey: string): Promise<any> {
