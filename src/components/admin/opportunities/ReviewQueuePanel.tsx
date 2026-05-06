@@ -383,7 +383,54 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
         row={editing}
         onApprove={approve}
       />
+
+      <LivePreviewDialog
+        row={previewing}
+        onOpenChange={(v) => { if (!v) setPreviewing(null); }}
+        onEdit={(r) => { setPreviewing(null); setEditing(r); setOpen(true); }}
+      />
     </div>
+  );
+}
+
+function LivePreviewDialog({
+  row, onOpenChange, onEdit,
+}: {
+  row: QueueRow | null;
+  onOpenChange: (v: boolean) => void;
+  onEdit: (r: QueueRow) => void;
+}) {
+  const vacancy = useMemo(() => (row ? buildPreviewVacancy(row) : null), [row]);
+  return (
+    <Dialog open={!!row} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto border-2 border-foreground">
+        <DialogHeader>
+          <DialogTitle className="font-heading">Preview — live card</DialogTitle>
+          <DialogDescription>
+            This is exactly how the vacancy will appear on the public Opportunities page once promoted.
+            Action buttons (Apply / share) are inert here.
+          </DialogDescription>
+        </DialogHeader>
+
+        {vacancy && (
+          <div className="bg-muted/30 border-2 border-dashed border-border rounded p-4">
+            <VacancyCard vacancy={vacancy} archived={false} application={null} />
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          {row && (
+            <Button
+              onClick={() => onEdit(row)}
+              className="font-bold border-2 border-foreground shadow-[3px_3px_0_0_hsl(var(--foreground))]"
+            >
+              <Check size={14} className="mr-1" /> Edit & promote
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
