@@ -202,9 +202,13 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
           🏢 Sources ({sources.length})
         </Button>
         <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" variant="outline" disabled={tickRunning} onClick={() => void tickAll()} title="Run scrape-tick now (processes due sources)">
+          <Button size="sm" variant="outline" disabled={tickRunning} onClick={() => void tickAll(false)} title="Run scrape-tick now (processes due sources)">
             {tickRunning ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
             Run tick
+          </Button>
+          <Button size="sm" variant="default" disabled={tickRunning} onClick={() => void tickAll(true)} title="Force-scrape every active source, ignoring frequency">
+            {tickRunning ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
+            Scrape all
           </Button>
           <Button size="sm" variant="ghost" onClick={() => void load()}>
             <RefreshCw size={14} className="mr-1" /> Refresh
