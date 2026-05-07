@@ -146,14 +146,6 @@ export default function Auth() {
           <div className="flex-1 h-px bg-border" />
         </div>
 
-          <h1 className="text-2xl font-bold text-foreground font-heading">
-            {isLogin ? "Welcome back" : "Join Locus"}
-          </h1>
-          <p className="text-muted-foreground mt-2 text-sm">
-            {isLogin ? "Sign in to your account." : "Create an account to get started."}
-          </p>
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="username">Username</Label>
