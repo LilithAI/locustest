@@ -169,6 +169,7 @@ const App = () => (
                   <Route path="/app" element={<AppHome />} />
                   <Route path="/waitlist" element={<Waitlist />} />
                   <Route path="/directory" element={<Directory />} />
+                  <Route path="/directory/firm/:slug" element={<FirmProfile />} />
                   <Route path="/playbook" element={<Playbook />} />
                   <Route path="/playbook/:slug" element={<PlaybookGuide />} />
                   <Route path="/resources" element={<Resources />} />
