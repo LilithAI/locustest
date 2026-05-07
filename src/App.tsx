@@ -245,6 +245,7 @@ const App = () => (
                     <Route path="admins" element={<AdminAdmins />} />
                     <Route path="insights" element={<AdminInsights />} />
                     <Route path="firm-intelligence" element={<AdminFirmIntelligence />} />
+                    <Route path="firm-intelligence/:slug/edit" element={<AdminFirmEdit />} />
                   </Route>
                   <Route path="/vacancies" element={<Navigate to="/opportunities" replace />} />
                   <Route path="/opportunities" element={<Opportunities />} />
