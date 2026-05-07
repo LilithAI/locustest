@@ -31,6 +31,7 @@ const tabs: Tab[] = [
   { to: "/admin/vacancies", label: "Vacancies", short: "Vacancies", icon: Briefcase, scope: "opportunities_admin" },
   { to: "/admin/opportunities", label: "Opportunities", short: "Opps", icon: Briefcase, scope: "opportunities_admin" },
   { to: "/admin/firm-suggestions", label: "Firm Suggestions", short: "Firms", icon: MessageSquarePlus, scope: "waitlist_admin" },
+  { to: "/admin/firm-intelligence", label: "Firm Intelligence", short: "Intel", icon: Sparkles, scope: "admin", fullAdminOnly: true },
   { to: "/admin/bar", label: "The Bar", short: "Bar", icon: Scale, scope: "bar_admin" },
   { to: "/admin/broadcasts", label: "Broadcasts", short: "Sends", icon: Megaphone, scope: "broadcast_admin" },
   { to: "/admin/admins", label: "Admin Access", short: "Access", icon: ShieldCheck, scope: "admin", fullAdminOnly: true },
