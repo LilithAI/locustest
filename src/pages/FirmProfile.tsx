@@ -252,12 +252,6 @@ export default function FirmProfile() {
             ))}
           </ul>
         </Section>
-      ) : (
-        <Section title="Recent activity">
-          <p className="text-sm text-muted-foreground italic flex items-center gap-2">
-            <Newspaper size={14} /> No recent activity tracked yet — news ingestion launches soon.
-          </p>
-        </Section>
       )}
 
       {/* Rankings */}
