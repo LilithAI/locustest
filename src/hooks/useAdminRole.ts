@@ -32,11 +32,15 @@ export interface AdminAccess {
  * - `hasAnyScope` is true if the user has at least one admin-family role
  *    (used to gate the /admin shell entry).
  */
+// TEMP: matches the bypass in AdminLayout.tsx — flip to false to re-lock admin.
+const ADMIN_BYPASS = true;
+
 export function useAdminAccess(): AdminAccess {
   const { userId, ready: authReady } = useAuthSession();
   const [scopes, setScopes] = useState<AdminScope[] | null>(null);
 
   useEffect(() => {
+    if (ADMIN_BYPASS) return;
     if (!authReady) return;
     if (!userId) {
       setScopes([]);
@@ -59,6 +63,16 @@ export function useAdminAccess(): AdminAccess {
       mounted = false;
     };
   }, [userId, authReady]);
+
+  if (ADMIN_BYPASS) {
+    return {
+      ready: true,
+      isAdmin: true,
+      scopes: [...ADMIN_SCOPES],
+      hasScope: () => true,
+      hasAnyScope: true,
+    };
+  }
 
   const ready = authReady && scopes !== null;
   const list = scopes ?? [];
