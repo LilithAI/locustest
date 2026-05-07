@@ -382,7 +382,13 @@ export default function AdminFirmIntelligence() {
                   <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{f.rankings_count}</td>
                   <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{f.news_count}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">{fmtDate(f.last_scraped_at)}</td>
-                  <td className="px-2 py-2 text-right">
+                  <td className="px-2 py-2 text-right whitespace-nowrap">
+                    <Link
+                      to={`/admin/firm-intelligence/${f.firm_slug}/edit`}
+                      className="mr-2 rounded-full border border-border px-2.5 py-1 text-xs hover:bg-muted"
+                    >
+                      Edit
+                    </Link>
                     <button
                       onClick={() => refreshOneInline(f.firm_slug, f.firm_name)}
                       disabled={running}
