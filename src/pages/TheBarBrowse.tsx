@@ -67,8 +67,7 @@ export default function TheBarBrowse() {
   });
   const [params, setParams] = useSearchParams();
 
-  const [authReady, setAuthReady] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
+  const { userId, ready: authReady } = useAuthSession();
   const [loading, setLoading] = useState(true);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [todayCount, setTodayCount] = useState(0);
@@ -78,16 +77,6 @@ export default function TheBarBrowse() {
   const diffFilter = params.get("diff") ?? "all";
   const sortBy = params.get("sort") ?? "newest";
   const page = Math.max(1, parseInt(params.get("page") ?? "1", 10));
-
-  useEffect(() => {
-    let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setUserId(data.session?.user?.id ?? null);
-      setAuthReady(true);
-    });
-    return () => { active = false; };
-  }, []);
 
   useEffect(() => {
     if (!authReady) return;
