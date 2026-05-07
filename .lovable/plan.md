@@ -1,131 +1,52 @@
-# Build the Firm Intelligence Pipeline
+## What's wrong
 
-I read your CSV and compared it to the DB. Here's the honest state and the plan.
+The scrape is working — Khaitan now has 4 offices and 21 practice areas in the DB. The problem is purely the UI: `src/pages/FirmProfile.tsx` is still a stub. Its body is literally:
 
----
-
-## What your CSV gives us (95 firms)
-
-| Field | Coverage |
-|---|---|
-| website_url | 95/95 ✅ |
-| practice_areas (semicolon list) | 69/95 |
-| offices (semicolon list) + addresses | 63/95 |
-| careers_url | 51/95 |
-| general_email | 47/95 |
-| founded_year | partial |
-| **total_lawyers / partner_count** | basically 0 (numbers in CSV are misparsed JSON counts, not real headcount) |
-| **rankings, news, locus_take, signature practices** | not in CSV at all |
-
-## What the DB has (94 firm_profiles rows)
-
-- All 94 have website_url + last_scraped_at + locus_take ✅
-- 0 firms have practice_areas, offices, rankings, or news populated in the relational side-tables (the CSV-style data sits as text columns on `firm_profiles` only)
-- 0 firms have real total_lawyers / partner_count
-
-## The gap
-
-The CSV-style scrape (basic firm-page extraction) already happened. To power the demo UI honestly we need a **second pass** that goes deeper: real lawyer/partner counts, practice areas with partner counts, structured offices, rankings, recent news. That's what Firecrawl + Gemini does.
-
----
-
-## Plan — 3 steps in this loop
-
-### Step 1 — One-time CSV backfill (no AI, no scraping)
-
-Import the better fields from your CSV into `firm_profiles` for the 95 firms (NULL-safe — won't overwrite existing values):
-- `practice_areas` text array (split on `;`)
-- `offices` text array + `office_addresses` JSONB
-- `office_count`, `hq_city`, `general_email`, `careers_email`, `phone_main`
-- `linkedin_url`, `twitter_url`, `careers_url`, `tagline`, `description`, `founded_year`
-
-Skip the broken `total_lawyers` / `partner_count` fields — those will come from the AI pass.
-
-This makes the directory and demo page meaningful for non-piloted firms immediately.
-
-### Step 2 — Firecrawl + Gemini refresh pipeline
-
-**New edge function** `refresh-firm-intelligence`:
-
-```text
-INPUT: { firm_slug }
-
-1. Load firm_profiles row → website_url, firm_name
-2. Firecrawl map(website_url) → pick 4 best URLs matching
-   /people|team|attorneys|practice|service|office|contact|about/i
-3. Firecrawl scrape(homepage + 4 sub-pages) → markdown (~30-50K tokens)
-4. Firecrawl search("<firm name>" site:barandbench.com OR site:livelaw.in
-   OR site:economictimes.com, tbs:'qdr:m', limit:10) → news
-5. Gemini google/gemini-3-flash-preview with structured tool-call schema:
-   {
-     tagline, founded_year, total_lawyers, partner_count,
-     general_email, careers_email, phone_main, hq_city,
-     offices: [{ city, address, is_hq }],
-     practice_areas: [{ name, partner_count, is_signature }],
-     rankings: [{ source, year, band_or_tier, practice_area }],
-     news: [{ title, url, source, published_at, mention_type, excerpt }]
-   }
-6. Write to DB with admin client (RLS-bypass):
-   - firm_profiles: NULL-safe overwrite of profile fields
-   - firm_offices: full replace by firm_slug
-   - firm_practice_areas: full replace by firm_slug
-   - firm_rankings: upsert on (firm_slug, source, year, practice_area)
-   - firm_news_mentions: upsert on url
-   - firm_profiles.last_scraped_at = now()
-   - recompute intelligence_completeness_score
+```
+<h1>{firm.firm_name}</h1>
+<p>Firm Intelligence page — UI coming next.</p>
 ```
 
-**Admin trigger** — `src/components/firm/RefreshIntelligenceButton.tsx`:
-- Floating button bottom-right of `/directory/firms/:slug`
-- Visible only when `useIsAdmin()` returns true
-- Toast progress, refetches firm queries on success
+Meanwhile the full designed UI already exists at `src/pages/DemoFirmIntelligence.tsx` (488 lines, hardcoded mock data) — that's the layout you fell in love with on `/demofirminteligence`.
 
-### Step 3 — Pilot on 3 firms, then promote demo to real
+So nothing is broken in scraping or in the data layer (`getFirmIntelligenceBySlug` already returns offices, practice_areas, rankings, news, movements, locus_take, completeness, chips, etc.). We just need to render it.
 
-After Step 2 ships:
-1. Open `/directory/firms/khaitan-co` as admin → click Refresh → wait ~20s → inspect DB writes
-2. Repeat for `cyril-amarchand-mangaldas` and `azb-partners`
-3. Iterate Gemini prompt if extraction is weak
-4. **Next loop (Phase 2):** swap `DemoFirmIntelligence.tsx`'s mock `firm` constant for real DB loaders, then promote it to `/directory/firms/:slug`. Conditional rendering means non-piloted firms degrade gracefully (sections hide if data missing).
+## Plan
 
-### Step 4 (later, separate loop) — Bulk backfill all 94
+### Step 1 — Port the Demo layout into FirmProfile (the only real change)
 
-One-off sandbox script loops over every enriched firm with 1-second delay. ~5 Firecrawl credits each × 94 = ~470 credits.
+Rewrite `src/pages/FirmProfile.tsx` to mirror the section structure of `DemoFirmIntelligence.tsx`, but driven by the real `FirmIntelligenceFull` object. Sections, in order:
 
----
+1. **Header** — firm name, tagline, HQ city, founded year, website link, social icons, tier badge, completeness %.
+2. **Locus Take** card — `firm.locus_take` (skip if null).
+3. **Intelligence chips row** — verified / hiring_now / growing / big_law / boutique / top_tier / recently_active (already computed in `chips`).
+4. **Key stats grid** — total_lawyers, partner_count, partner:associate ratio, office_count, hiring_velocity.
+5. **Offices** — list of cards from `firm.offices` (city, address, phone, HQ badge). Empty-state if none.
+6. **Practice areas** — chips from `firm.practice_areas`, signature ones highlighted with accent color.
+7. **Rankings** — grouped by source (Chambers / Legal500 / etc.), each row shows band + practice area + year. Hide section if empty.
+8. **Recent news** — list of `firm.news`, each item shows source pill, date, title (link), excerpt. Hide if empty.
+9. **Team movements** — recent joiners/leavers from `firm.movements`. Hide if empty.
+10. **Contact** — general_email, careers_email, careers_url, phone_main.
+11. **Last refreshed** footer — `last_scraped_at` timestamp + completeness score.
+12. **Floating Refresh button** (admin-only) — already wired, keep it.
 
-## Secrets needed
+### Step 2 — Empty-state polish
 
-Just one: **`FIRECRAWL_API_KEY`** (you have `fc-1f3fccf38b9048b3bd4bf6f3d2868822`).
-- `LOVABLE_API_KEY` — already configured ✅
-- DB service role — already in edge function env ✅
+For any section with no data, hide the section entirely rather than showing "No data" — the page should look complete even at 30% completeness. For the whole page, if `last_scraped_at` is null, show a single "Not yet enriched — click Refresh intelligence" CTA.
 
-I'll request it via the secret tool when you approve.
+### Step 3 — Reuse demo's visual tokens
 
----
+Pull the same card styling, spacing, typography, and accent colors from `DemoFirmIntelligence.tsx` so `/directory/firms/:slug` looks identical in style to `/demofirminteligence`. No new design tokens.
 
-## Files this plan creates / edits
+### Out of scope (explicitly NOT in this plan)
 
-**New:**
-- `supabase/functions/refresh-firm-intelligence/index.ts` — orchestrator
-- `supabase/functions/refresh-firm-intelligence/extractor.ts` — Gemini schema + prompt
-- `src/components/firm/RefreshIntelligenceButton.tsx`
-- One-off script in this loop's sandbox to import the CSV (no project file)
+- No DB/schema changes.
+- No edge function changes — scrape pipeline stays as is.
+- No changes to `DemoFirmIntelligence.tsx` (keep it as the design reference for now; we can delete it later once you sign off on the real page).
+- No changes to directory listing, auth, nav.
 
-**Edited:**
-- `src/pages/FirmProfile.tsx` — mount the floating refresh button (admin-only)
+### Files touched
 
-**Untouched:**
-- `/demofirminteligence` (still mock, finalised look)
-- `/directory` listing
-- DB schema (zero migrations)
-- Auth, nav, every other route
+- **Edit:** `src/pages/FirmProfile.tsx` (rewrite body, keep imports + data fetch + RefreshIntelligenceButton).
 
----
-
-## Approve = I run
-
-1. `supabase--insert` to backfill CSV → `firm_profiles` (NULL-safe)
-2. `secrets--add_secret` for `FIRECRAWL_API_KEY`
-3. Build the edge function + admin button
-4. Tell you to test on Khaitan, then iterate
+That's it — one file.
