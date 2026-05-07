@@ -205,21 +205,20 @@ export default function TheBar() {
       }
     })();
     return () => { active = false; };
-  }, [authReady, userId, refetchTick, location.key]);
+  }, [authReady, userId, refetchTick]);
 
-  // Refetch dashboard whenever the tab becomes visible again or when a
-  // submitted attempt broadcasts a stats update — fixes stale "Trainee 0/0/0"
-  // state after a user finishes a challenge in another route.
+  // Refetch dashboard when a submitted attempt broadcasts a stats update or
+  // when the tab becomes visible again after a long idle. We deliberately do
+  // NOT refetch on every window focus or on every route change — that was
+  // firing redundant RPCs and making the page feel sluggish.
   useEffect(() => {
     const bump = () => setRefetchTick((t) => t + 1);
     const onVisible = () => { if (document.visibilityState === "visible") bump(); };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("bar:stats-updated", bump);
-    window.addEventListener("focus", bump);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("bar:stats-updated", bump);
-      window.removeEventListener("focus", bump);
     };
   }, []);
 
