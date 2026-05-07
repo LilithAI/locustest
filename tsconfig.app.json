@@ -19,6 +19,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "react-router-dom": [
+        "./src/lib/rrd.tsx"
       ]
     },
     "skipLibCheck": true,
