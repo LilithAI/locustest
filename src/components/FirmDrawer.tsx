@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
-import { Star, MapPin, Phone, Mail, ExternalLink, Sparkles, ShieldCheck, Eye, MessageSquarePlus } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Star, MapPin, Phone, Mail, ExternalLink, Sparkles, ShieldCheck, Eye, MessageSquarePlus, ArrowRight } from "lucide-react";
 import { ShareIconButton } from "@/components/ShareIconButton";
 import { toast } from "sonner";
+import { getFirmIntelligenceSlugs } from "@/lib/firm-profiles";
+import FirmIntelligenceBadge from "@/components/directory/FirmIntelligenceBadge";
 import {
   Sheet,
   SheetContent,
@@ -19,6 +22,7 @@ type FirmType = "Law Firm" | "Chamber" | "Individual Advocate";
 
 interface Firm {
   id?: string;
+  firm_slug?: string;
   name: string;
   address?: string;
   city?: string;
@@ -42,12 +46,25 @@ interface FirmDrawerProps {
 export default function FirmDrawer({ firm, type, open, onOpenChange }: FirmDrawerProps) {
   const [draftOpen, setDraftOpen] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const [hasIntelligence, setHasIntelligence] = useState(false);
 
   useEffect(() => {
     if (open && firm) {
       void track("firm_view", { name: firm.name, type, city: firm.city ?? null });
     }
   }, [open, firm, type]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (open && firm?.firm_slug) {
+      getFirmIntelligenceSlugs().then((set) => {
+        if (!cancelled) setHasIntelligence(set.has(firm.firm_slug!));
+      });
+    } else {
+      setHasIntelligence(false);
+    }
+    return () => { cancelled = true; };
+  }, [open, firm]);
 
   if (!firm) return null;
 
@@ -106,6 +123,7 @@ export default function FirmDrawer({ firm, type, open, onOpenChange }: FirmDrawe
                 <Star size={12} /> {firm.rating}
               </span>
             )}
+            {hasIntelligence && <FirmIntelligenceBadge size="md" />}
           </div>
 
           {/* Verification */}
@@ -179,6 +197,27 @@ export default function FirmDrawer({ firm, type, open, onOpenChange }: FirmDrawe
               <p className="text-sm text-muted-foreground">No contact information available.</p>
             )}
           </div>
+
+          {/* Firm Intelligence CTA */}
+          {hasIntelligence && firm.firm_slug && (
+            <Link
+              to={`/directory/firm/${firm.firm_slug}`}
+              className="block bg-card border-2 border-foreground rounded-lg p-3 shadow-[3px_3px_0_0_hsl(var(--accent))] hover:shadow-[5px_5px_0_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-all group"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-md bg-accent text-accent-foreground border-2 border-foreground shrink-0">
+                    <Sparkles size={14} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-foreground">Open Firm Intelligence</div>
+                    <div className="text-[11px] text-muted-foreground">Partners, offices, practice areas…</div>
+                  </div>
+                </div>
+                <ArrowRight size={16} className="shrink-0 text-accent group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </Link>
+          )}
 
           {/* Actions */}
           <div className="space-y-2">
