@@ -48,6 +48,7 @@ export type FirmIntelligenceFull = FirmIntelligenceSummary & {
   practice_areas_last_updated_at: string | null;
   news_last_updated_at: string | null;
   offices_last_updated_at: string | null;
+  last_scraped_at: string | null;
   locus_take: string | null;
   offices: Array<{
     id: string;
