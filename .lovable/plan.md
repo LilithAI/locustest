@@ -1,48 +1,39 @@
-# Fix The Bar lag before continuing
+## Next perf pass — finish what's left from the diagnostic
 
-## Goal
-Make The Bar feel immediate again by removing the current click delay, cutting unnecessary work during route changes, and fixing the broken dashboard read that is forcing retries and fallback queries.
+Two items remain from the lag investigation. Both are straightforward and isolated to non-business-logic code paths.
 
-## What I found
-- The lag is real: the live profile shows very slow initial rendering and a heavy client load.
-- The Bar dashboard RPC is broken right now (`get_bar_dashboard` fails with `function row_to_jsonb(record) does not exist`).
-- Because that RPC fails, the page retries, waits, then falls back to multiple direct table reads, which adds more latency and extra backend work.
-- The app is also loading a very large number of scripts/resources on first load, which makes navigation feel sticky.
-- The Bar browse page currently pulls up to 500 challenge rows at once and then filters client-side, which is more work than needed.
+### 1. TheBarBrowse: stop pulling 500 rows on every visit
 
-## Implementation plan
-1. Fix the backend dashboard function
-   - Patch the database function so it returns recent attempts correctly without the invalid `row_to_jsonb(record)` call.
-   - Validate that `/the-bar` can load stats in one successful request instead of retry + fallback.
+Today `TheBarBrowse.tsx` fetches up to 500 challenge rows + every attempt row for the user, then filters/sorts/paginates in JS. On a slow phone this is the heaviest page in the Bar flow.
 
-2. Remove avoidable client-side delay in The Bar flow
-   - Stop The Bar pages from doing extra auth/session fetches when shared auth state already exists.
-   - Remove or reduce unnecessary re-fetch triggers on route transitions/focus where they are causing redundant work.
-   - Make The Bar route transitions rely on direct navigation instead of extra refresh behavior tied to `location.key`.
+Changes (all in `src/pages/TheBarBrowse.tsx`):
+- Move filter (`type`, `area`, `diff`), sort, and pagination to the Supabase query using `.eq()` / `.order()` / `.range()`.
+- Use `select(..., { count: "exact" })` to drive the pager instead of `filtered.length`.
+- Keep the "hide already-attempted" behaviour, but switch from "fetch every attempt" to a server-side anti-join via a tiny RPC `bar_browse_challenges(p_type, p_area, p_diff, p_sort, p_offset, p_limit)` that returns `{ rows, total }` with attempted IDs excluded for the calling user (and no filter for guests).
+- Fetch the daily-cap row in parallel, unchanged.
+- Refetch only when filter/sort/page or `userId` changes — drop the implicit refetch on every mount.
 
-3. Reduce data and rendering cost on Browse/Challenge flows
-   - Change Browse so it does not fetch and process hundreds of rows eagerly when the user only needs the first page.
-   - Move filtering/sorting/pagination work closer to the query instead of loading a large client-side list.
-   - Check challenge page load for duplicate queries before submission and trim any non-essential first-render work.
+Result: page load drops from ~500 rows to 30, and the JS filter/sort cost disappears.
 
-4. Cut background work that hurts responsiveness
-   - Audit global idle prefetching and route warmups so they do not compete with the user’s immediate interactions.
-   - Reduce unnecessary background imports/network work for the current session, especially around The Bar routes.
+### 2. Prefetch / background work audit
 
-5. Verify with real measurements
-   - Re-profile `/the-bar` and the “Take a Challenge” click path.
-   - Confirm that the click response feels immediate and that the broken dashboard error is gone.
+`src/lib/prefetch.ts` already gates on interaction + idle, but `COMMON_KEYS` still warms 5 chunks back-to-back with 800 ms gaps. On The Bar specifically, those chunks compete with the dashboard RPC and the click handlers feel sticky for the first ~5 s after first interaction.
 
-## Technical details
-- Files likely involved:
-  - `supabase/migrations/...get_bar_dashboard...sql`
-  - `src/pages/TheBar.tsx`
-  - `src/pages/TheBarBrowse.tsx`
-  - `src/pages/TheBarChallenge.tsx`
-  - `src/routes/__root.tsx`
-  - `src/lib/prefetch.ts`
-- Success criteria:
-  - No `[TheBar] get_bar_dashboard failed` error
-  - No retry/fallback path on normal dashboard load
-  - Faster transition from `/the-bar` to `/the-bar/browse`
-  - Lower network/JS work during first interaction
+Changes:
+- Trim `COMMON_KEYS` to the 2 routes a Bar user actually hits next: `theBarBrowse`, `theBarHistory`. Drop `directory`, `playbook`, `resources`, `tools` from the auto-warm list — they're already prefetched on hover via `prefetchRoute`.
+- Bump the inter-chunk delay from 800 ms → 2000 ms and only start after `requestIdleCallback` fires (already the case, but remove the 60 s fallback timer that fires even with zero interaction — it's the source of "random" lag spikes 60 s into a session).
+- No change to `prefetchRoute` (hover/focus prefetch stays).
+
+Result: fewer background chunk downloads competing with click handlers; no surprise prefetch storm at the 60 s mark.
+
+### Out of scope (intentionally)
+
+- No design/UI changes.
+- No auth flow changes (already handled last turn).
+- No new tables — only one read-only RPC.
+
+### Files touched
+
+- `supabase/migrations/<new>.sql` — add `bar_browse_challenges` RPC (SECURITY DEFINER, reads from `bar_challenges_student` view, excludes attempted IDs for the caller).
+- `src/pages/TheBarBrowse.tsx` — switch to RPC + server-side paging.
+- `src/lib/prefetch.ts` — trim `COMMON_KEYS`, raise delay, drop 60 s fallback.

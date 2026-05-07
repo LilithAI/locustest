@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/useAuthSession";
@@ -69,7 +69,8 @@ export default function TheBarBrowse() {
 
   const { userId, ready: authReady } = useAuthSession();
   const [loading, setLoading] = useState(true);
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [pageItems, setPageItems] = useState<Challenge[]>([]);
+  const [total, setTotal] = useState(0);
   const [todayCount, setTodayCount] = useState(0);
 
   const typeFilter = params.get("type") ?? "all";
@@ -83,57 +84,38 @@ export default function TheBarBrowse() {
     let active = true;
     (async () => {
       setLoading(true);
-      const today = new Date();
-      const todayStr = today.toISOString().slice(0, 10);
-      // Browse uses the safe student view; order by created_at (approved_at is not exposed).
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const offset = (page - 1) * PAGE_SIZE;
 
-      if (userId) {
-        const [attemptedRes, dailyRes, challengeRes] = await Promise.all([
-          supabase.from("bar_attempts").select("challenge_id").eq("user_id", userId),
-          supabase.from("bar_daily_attempts").select("attempt_count").eq("user_id", userId).eq("attempt_date", todayStr).maybeSingle(),
-          // Read from the safe view — correct answers stripped server-side
-          supabase
-            .from("bar_challenges_student" as any)
-            .select("id, question_type, area_of_law, difficulty, prompt, points_base, source_citation, created_at")
-            .order("created_at", { ascending: false })
-            .limit(500),
-        ]);
-        if (!active) return;
-        const attemptedIds = new Set((attemptedRes.data ?? []).map((a: any) => a.challenge_id));
-        const all = ((challengeRes.data ?? []) as unknown) as Challenge[];
-        setChallenges(all.filter((c) => !attemptedIds.has(c.id)));
-        setTodayCount((dailyRes.data as any)?.attempt_count ?? 0);
-      } else {
-        // Guest: just list every approved challenge — no attempt filtering, no daily cap
-        const { data: challengeData } = await supabase
-          .from("bar_challenges_student" as any)
-          .select("id, question_type, area_of_law, difficulty, prompt, points_base, source_citation, created_at")
-          .order("created_at", { ascending: false })
-          .limit(500);
-        if (!active) return;
-        setChallenges(((challengeData ?? []) as unknown) as Challenge[]);
-        setTodayCount(0);
-      }
+      const browsePromise = supabase.rpc("bar_browse_challenges" as any, {
+        p_type: typeFilter,
+        p_area: areaFilter,
+        p_diff: diffFilter,
+        p_sort: sortBy,
+        p_offset: offset,
+        p_limit: PAGE_SIZE,
+      });
+
+      const dailyPromise = userId
+        ? supabase.from("bar_daily_attempts").select("attempt_count").eq("user_id", userId).eq("attempt_date", todayStr).maybeSingle()
+        : Promise.resolve({ data: null } as any);
+
+      const [browseRes, dailyRes] = await Promise.all([browsePromise, dailyPromise]);
+      if (!active) return;
+
+      const payload = (browseRes.data ?? { total: 0, rows: [] }) as any;
+      setPageItems((payload.rows ?? []) as Challenge[]);
+      setTotal(payload.total ?? 0);
+      setTodayCount((dailyRes?.data as any)?.attempt_count ?? 0);
       setLoading(false);
     })();
     return () => { active = false; };
-  }, [authReady, userId]);
+  }, [authReady, userId, typeFilter, areaFilter, diffFilter, sortBy, page]);
 
-  const filtered = useMemo(() => {
-    let out = challenges;
-    if (typeFilter !== "all") out = out.filter((c) => c.question_type === typeFilter);
-    if (areaFilter !== "all") out = out.filter((c) => c.area_of_law === areaFilter);
-    if (diffFilter !== "all") out = out.filter((c) => c.difficulty === diffFilter);
+  // Suppress unused warning for the rank table kept for backwards-compat consumers
+  void DIFF_RANK;
 
-    if (sortBy === "points_desc") out = [...out].sort((a, b) => b.points_base - a.points_base);
-    else if (sortBy === "diff_asc") out = [...out].sort((a, b) => DIFF_RANK[a.difficulty] - DIFF_RANK[b.difficulty]);
-    // newest is default order
-
-    return out;
-  }, [challenges, typeFilter, areaFilter, diffFilter, sortBy]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const updateParam = (k: string, v: string) => {
     const next = new URLSearchParams(params);
@@ -295,10 +277,10 @@ export default function TheBarBrowse() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-48 w-full" />)}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : pageItems.length === 0 ? (
           <Card className="border-2 border-dashed border-border p-12 text-center">
             <p className="text-muted-foreground">
-              {!isGuest && challenges.length === 0
+              {!isGuest && total === 0
                 ? "You've attempted every available challenge. Come back when new ones drop."
                 : "No challenges match your filters. Try broadening."}
             </p>
