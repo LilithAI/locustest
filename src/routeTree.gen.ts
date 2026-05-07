@@ -54,6 +54,7 @@ import { Route as LayoutAdminBroadcastsRouteImport } from './routes/_layout.admi
 import { Route as LayoutAdminBetaRouteImport } from './routes/_layout.admin.beta'
 import { Route as LayoutAdminBarRouteImport } from './routes/_layout.admin.bar'
 import { Route as LayoutAdminAdminsRouteImport } from './routes/_layout.admin.admins'
+import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LayoutTheBarChallengeIdRouteImport } from './routes/_layout.the-bar.challenge.$id'
 import { Route as LayoutDirectoryFirmSlugRouteImport } from './routes/_layout.directory.firm.$slug'
 
@@ -284,6 +285,12 @@ const LayoutAdminAdminsRoute = LayoutAdminAdminsRouteImport.update({
   path: '/admins',
   getParentRoute: () => LayoutAdminRoute,
 } as any)
+const LovableEmailQueueProcessRoute =
+  LovableEmailQueueProcessRouteImport.update({
+    id: '/lovable/email/queue/process',
+    path: '/lovable/email/queue/process',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const LayoutTheBarChallengeIdRoute = LayoutTheBarChallengeIdRouteImport.update({
   id: '/challenge/$id',
   path: '/challenge/$id',
@@ -342,6 +349,7 @@ export interface FileRoutesByFullPath {
   '/tools/': typeof LayoutToolsIndexRoute
   '/directory/firm/$slug': typeof LayoutDirectoryFirmSlugRoute
   '/the-bar/challenge/$id': typeof LayoutTheBarChallengeIdRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -385,6 +393,7 @@ export interface FileRoutesByTo {
   '/tools': typeof LayoutToolsIndexRoute
   '/directory/firm/$slug': typeof LayoutDirectoryFirmSlugRoute
   '/the-bar/challenge/$id': typeof LayoutTheBarChallengeIdRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -435,6 +444,7 @@ export interface FileRoutesById {
   '/_layout/tools/': typeof LayoutToolsIndexRoute
   '/_layout/directory/firm/$slug': typeof LayoutDirectoryFirmSlugRoute
   '/_layout/the-bar/challenge/$id': typeof LayoutTheBarChallengeIdRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -485,6 +495,7 @@ export interface FileRouteTypes {
     | '/tools/'
     | '/directory/firm/$slug'
     | '/the-bar/challenge/$id'
+    | '/lovable/email/queue/process'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -528,6 +539,7 @@ export interface FileRouteTypes {
     | '/tools'
     | '/directory/firm/$slug'
     | '/the-bar/challenge/$id'
+    | '/lovable/email/queue/process'
   id:
     | '__root__'
     | '/_layout'
@@ -577,6 +589,7 @@ export interface FileRouteTypes {
     | '/_layout/tools/'
     | '/_layout/directory/firm/$slug'
     | '/_layout/the-bar/challenge/$id'
+    | '/lovable/email/queue/process'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -588,6 +601,7 @@ export interface RootRouteChildren {
   AdminLoginRoute: typeof AdminLoginRoute
   BetaRound2Route: typeof BetaRound2Route
   BetaIndexRoute: typeof BetaIndexRoute
+  LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -907,6 +921,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAdminAdminsRouteImport
       parentRoute: typeof LayoutAdminRoute
     }
+    '/lovable/email/queue/process': {
+      id: '/lovable/email/queue/process'
+      path: '/lovable/email/queue/process'
+      fullPath: '/lovable/email/queue/process'
+      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_layout/the-bar/challenge/$id': {
       id: '/_layout/the-bar/challenge/$id'
       path: '/challenge/$id'
@@ -1070,6 +1091,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminLoginRoute: AdminLoginRoute,
   BetaRound2Route: BetaRound2Route,
   BetaIndexRoute: BetaIndexRoute,
+  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
