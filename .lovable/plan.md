@@ -1,100 +1,44 @@
 ## What's actually happening
 
-When you click "Continue with Google", you end up at:
+You diagnosed it correctly. Two separate problems are stacked on top of each other:
 
-```
-https://lexleaks.com/app#access_token=...&refresh_token=...&token_type=bearer
-```
+1. **Google sign-in works**, but after the broker exchanges the tokens it drops you on the **root page** (`/`) instead of `/app`. That's why it "looks like nothing happened" — you're actually signed in, just on the wrong page.
+2. When you then manually open `/app`, you sometimes get **Not Found**. That's because the live `lexleaks.com` build is older than the current code and doesn't know the `/app` route yet. It will go away the moment you Publish → Update.
 
-…and the page shows "Not Found". Two separate things are wrong:
+### Why the redirect lands on `/`
 
-### 1. The OAuth return URL is bypassing the Lovable broker
+- We pass `redirect_uri: window.location.origin` (= `https://lexleaks.com/`) to the OAuth broker.
+- After Google → broker → it puts the session in storage and reloads the page **at that redirect URI** — i.e. the homepage.
+- The `navigate(postLoginPath)` line in `Auth.tsx` never runs, because the browser left the page during OAuth. So our `sessionStorage.setItem("post_oauth_redirect", "/app")` value is just sitting there, unused.
 
-In `src/pages/Auth.tsx`, the Google button passes:
+## Fix
 
-```ts
-lovable.auth.signInWithOAuth("google", {
-  redirect_uri: `${window.location.origin}${postLoginPath}`, // → https://lexleaks.com/app
-});
-```
+### 1. Auto-forward to the intended page after OAuth (`src/App.tsx`)
 
-A managed Lovable Google sign-in is supposed to come back to `/~oauth/callback`, where the broker exchanges the code and calls `supabase.auth.setSession(...)`. Instead, you're being redirected straight from Supabase with the tokens in the URL hash — that's the legacy Supabase implicit-flow redirect, not the managed broker flow. This happens when `redirect_uri` points at an arbitrary app path that the broker doesn't own.
+Add a tiny pre-mount check that runs on **every** page load:
 
-### 2. `/app` is rendering as Not Found on the live custom domain
+- If `sessionStorage` has `post_oauth_redirect`, **and** there's a live Supabase session, **and** we're currently sitting on `/` (or wherever the broker dropped us, but not already on the target), then `window.location.replace(target)` to that path and clear the key.
+- This piggybacks on the existing pre-mount block that already handles the legacy `#access_token=…` case, so it's the same pattern.
 
-`/app` exists in `src/App.tsx` (line 169) and works in preview, but `https://lexleaks.com/app` shows the 404 page. That means the **published build on lexleaks.com is older than the code** — it predates the `/app` route. React Router's catch-all `*` route is matching and rendering `<NotFound />`. The hash (`#access_token=…`) is preserved through that match, which is why you see it in the URL.
+This makes it bulletproof regardless of whether the broker lands on `/`, `/~oauth/callback`, or anywhere else.
 
-So even after we fix the OAuth redirect, you also need to **publish (Update)** so the live site has the `/app` route.
+### 2. Belt-and-suspenders in `src/pages/Auth.tsx`
 
-## The plan
+Keep the existing `sessionStorage.setItem("post_oauth_redirect", postLoginPath)` line so the rescuer in step 1 has something to read. No other change needed there.
 
-### Step 1 — Fix the OAuth redirect target in Auth.tsx
+### 3. Publish
 
-Change the Google sign-in to let the broker handle the callback, then route to `/app` (or the `next` param) **after** the session is set:
+After the code change above, **click Publish → Update** so `lexleaks.com` actually has the `/app` route. Until that happens, even a perfect redirect will hit a 404 because the live bundle's router doesn't know `/app` exists.
 
-```ts
-const handleGoogleSignIn = async () => {
-  setLoading(true);
-  try {
-    void track("signup_started", { method: "google" });
-    sessionStorage.setItem("post_oauth_redirect", postLoginPath); // remember intent
+## Verifying
 
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin, // root — broker owns /~oauth/*
-    });
+After implementing + publishing:
+1. Sign out, go to `lexleaks.com/auth`, click Continue with Google, pick `admin@locus.legal`.
+2. You should land directly on `lexleaks.com/app`, signed in, dashboard loaded.
+3. Reloading `/app` directly should also work (no 404).
 
-    if (result?.redirected) return;            // browser is leaving for Google
-    if (result?.error) {
-      toast.error(result.error.message || "Failed to sign in with Google");
-      return;
-    }
+## Out of scope
 
-    // Tokens already set on the supabase client → go to intended page
-    const next = sessionStorage.getItem("post_oauth_redirect") || "/app";
-    sessionStorage.removeItem("post_oauth_redirect");
-    navigate(next);
-  } catch (err: any) {
-    toast.error(err.message || "Something went wrong");
-  } finally {
-    setLoading(false);
-  }
-};
-```
-
-### Step 2 — Add a tiny hash-token rescue in App.tsx
-
-Until the new build is published, and as a safety net for any stale OAuth links already in the wild, add a pre-mount handler so a `#access_token=…` landing on any path is consumed and the user is sent to `/app` instead of the 404 page:
-
-```ts
-if (typeof window !== "undefined" && window.location.hash.includes("access_token=")) {
-  const params = new URLSearchParams(window.location.hash.slice(1));
-  const access_token = params.get("access_token");
-  const refresh_token = params.get("refresh_token");
-  if (access_token && refresh_token) {
-    void supabase.auth.setSession({ access_token, refresh_token }).finally(() => {
-      const next = sessionStorage.getItem("post_oauth_redirect") || "/app";
-      sessionStorage.removeItem("post_oauth_redirect");
-      window.location.replace(next);
-    });
-  }
-}
-```
-
-This runs before React mounts, so the user never sees the 404 flash even if a legacy redirect URL is still configured somewhere.
-
-### Step 3 — Publish (manual, by you)
-
-After the code change, click **Publish → Update** so `lexleaks.com` actually serves the build that contains the `/app` route. Frontend changes don't go live until you publish.
-
-### Step 4 — Verify
-
-After publishing:
-1. Open `lexleaks.com` in an incognito window.
-2. Click "Continue with Google".
-3. Confirm: the URL after sign-in is a clean `https://lexleaks.com/app` with **no `#access_token=…`** in it, and the app dashboard renders.
-
-## Out of scope (intentionally)
-
-- No changes to Supabase Auth provider settings — managed Google OAuth in Lovable Cloud already covers `lexleaks.com`. Once the redirect_uri is the root origin, the broker takes over and the implicit-hash leak goes away.
-- No changes to backend, DB, or RLS.
-- The `locus.legal` handoff still works the same way: when ownership moves, the new workspace just reconfirms managed Google sign-in (or pastes their own client ID/secret). No code changes needed.
+- We are NOT touching the broker file (`src/integrations/lovable/index.ts`) — it's auto-generated.
+- We are NOT changing how usernames or admin login work.
+- No DB or auth-config changes.
