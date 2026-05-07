@@ -319,7 +319,85 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
         row={editing}
         onApprove={approve}
       />
+
+      <PreviewDialog
+        row={previewing}
+        onClose={() => setPreviewing(null)}
+        onReject={(r) => { setPreviewing(null); void reject(r); }}
+        onPromote={(r) => { setPreviewing(null); setEditing(r); setOpen(true); }}
+      />
     </div>
+  );
+}
+
+function PreviewDialog({
+  row, onClose, onReject, onPromote,
+}: {
+  row: QueueRow | null;
+  onClose: () => void;
+  onReject: (r: QueueRow) => void;
+  onPromote: (r: QueueRow) => void;
+}) {
+  if (!row) return null;
+  const ext = row.ai_extracted || {};
+  const Field = ({ label, value }: { label: string; value: any }) =>
+    value ? (
+      <div>
+        <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">{label}</div>
+        <div className="text-sm whitespace-pre-wrap break-words">{String(value)}</div>
+      </div>
+    ) : null;
+
+  return (
+    <Dialog open={!!row} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto border-2 border-foreground">
+        <DialogHeader>
+          <DialogTitle className="font-heading">{ext.role || row.source_title || "(no role)"}</DialogTitle>
+          <DialogDescription>
+            {row.source_firm}
+            {" · "}
+            <a href={row.source_url} target="_blank" rel="noreferrer noopener" className="text-accent underline break-all">
+              {row.source_url}
+            </a>
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <Field label="Type" value={ext.opportunity_type} />
+            <Field label="Location" value={ext.location} />
+            <Field label="Country" value={ext.country} />
+            <Field label="Deadline" value={ext.deadline} />
+            <Field label="Eligibility" value={ext.eligibility} />
+            <Field label="Stipend" value={ext.stipend} />
+            <Field label="Practice area" value={ext.practice_area} />
+            <Field label="Apply URL" value={ext.apply_url} />
+            <Field label="Apply email" value={ext.application_email} />
+            <Field label="Description" value={ext.description} />
+          </div>
+
+          <div>
+            <Label className="font-mono text-[10px] uppercase tracking-widest">Raw scraped markdown</Label>
+            <div className="mt-1 max-h-[60vh] overflow-y-auto border-2 border-border rounded p-3 text-xs whitespace-pre-wrap font-mono bg-muted/30">
+              {row.raw_text || "(empty)"}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4 flex-wrap">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button variant="outline" onClick={() => onReject(row)}>
+            <X size={14} className="mr-1" /> Reject
+          </Button>
+          <Button
+            onClick={() => onPromote(row)}
+            className="font-bold border-2 border-foreground shadow-[3px_3px_0_0_hsl(var(--foreground))]"
+          >
+            <Check size={14} className="mr-1" /> Review & promote
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
