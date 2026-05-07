@@ -237,7 +237,7 @@ export default function FirmProfile() {
       )}
 
       {/* News */}
-      {firm.news.length > 0 ? (
+      {firm.news.length > 0 && (
         <Section title="Recent activity">
           <ul className="space-y-3">
             {firm.news.map((n, i) => (
