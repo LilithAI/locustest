@@ -160,11 +160,11 @@ export function loadIntelligenceIndex(): Promise<Map<string, FirmIntelligenceSum
     // Hiring-now = at least one live vacancy
     const { data: vacs } = await supabase
       .from("vacancies")
-      .select("firm_name_snapshot")
+      .select("firm_name")
       .eq("status", "live");
     const hiringSet = new Set<string>();
-    (vacs ?? []).forEach((v: { firm_name_snapshot: string | null }) => {
-      if (v.firm_name_snapshot) hiringSet.add(normName(v.firm_name_snapshot));
+    (vacs ?? []).forEach((v: { firm_name: string | null }) => {
+      if (v.firm_name) hiringSet.add(normName(v.firm_name));
     });
 
     const map = new Map<string, FirmIntelligenceSummary>();
@@ -272,11 +272,11 @@ export async function getFirmIntelligenceBySlug(
   // Hiring-now check for chips
   const { data: vacs } = await supabase
     .from("vacancies")
-    .select("firm_name_snapshot")
+    .select("firm_name")
     .eq("status", "live");
   const hiring = (vacs ?? []).some(
-    (v: { firm_name_snapshot: string | null }) =>
-      v.firm_name_snapshot && normName(v.firm_name_snapshot) === normName(p.firm_name)
+    (v: { firm_name: string | null }) =>
+      v.firm_name && normName(v.firm_name) === normName(p.firm_name)
   );
 
   const since30 = new Date();
