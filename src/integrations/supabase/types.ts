@@ -859,6 +859,33 @@ export type Database = {
         }
         Relationships: []
       }
+      email_send_dedupe: {
+        Row: {
+          dedupe_key: string | null
+          id: string
+          last_sent_at: string
+          recipient_email: string
+          send_count: number
+          template_name: string
+        }
+        Insert: {
+          dedupe_key?: string | null
+          id?: string
+          last_sent_at?: string
+          recipient_email: string
+          send_count?: number
+          template_name: string
+        }
+        Update: {
+          dedupe_key?: string | null
+          id?: string
+          last_sent_at?: string
+          recipient_email?: string
+          send_count?: number
+          template_name?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -888,33 +915,6 @@ export type Database = {
           metadata?: Json | null
           recipient_email?: string
           status?: string
-          template_name?: string
-        }
-        Relationships: []
-      }
-      email_send_state: {
-        Row: {
-          dedupe_key: string | null
-          id: string
-          last_sent_at: string
-          recipient_email: string
-          send_count: number
-          template_name: string
-        }
-        Insert: {
-          dedupe_key?: string | null
-          id?: string
-          last_sent_at?: string
-          recipient_email: string
-          send_count?: number
-          template_name: string
-        }
-        Update: {
-          dedupe_key?: string | null
-          id?: string
-          last_sent_at?: string
-          recipient_email?: string
-          send_count?: number
           template_name?: string
         }
         Relationships: []
