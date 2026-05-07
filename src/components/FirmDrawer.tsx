@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { loadIntelligenceIndex, getIntelligenceForName, type FirmIntelligenceSummary } from "@/lib/firmIntelligence";
 import { Star, MapPin, Phone, Mail, ExternalLink, Sparkles, ShieldCheck, Eye, MessageSquarePlus } from "lucide-react";
 import { ShareIconButton } from "@/components/ShareIconButton";
 import { toast } from "sonner";
@@ -42,10 +44,14 @@ interface FirmDrawerProps {
 export default function FirmDrawer({ firm, type, open, onOpenChange }: FirmDrawerProps) {
   const [draftOpen, setDraftOpen] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const [intel, setIntel] = useState<FirmIntelligenceSummary | null>(null);
 
   useEffect(() => {
     if (open && firm) {
       void track("firm_view", { name: firm.name, type, city: firm.city ?? null });
+      loadIntelligenceIndex().then((idx) => setIntel(getIntelligenceForName(idx, firm.name)));
+    } else {
+      setIntel(null);
     }
   }, [open, firm, type]);
 
@@ -182,6 +188,15 @@ export default function FirmDrawer({ firm, type, open, onOpenChange }: FirmDrawe
 
           {/* Actions */}
           <div className="space-y-2">
+            {intel && (
+              <Link
+                to={`/directory/firms/${intel.firm_slug}`}
+                className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-foreground text-background font-bold text-sm hover:opacity-90 transition-opacity border-2 border-foreground shadow-[3px_3px_0_0_hsl(var(--accent))]"
+              >
+                <Sparkles size={14} />
+                Open full firm profile →
+              </Link>
+            )}
             {draftTarget && (
               <button
                 type="button"
