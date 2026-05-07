@@ -126,6 +126,37 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
     }
   };
 
+  const [scrapingAll, setScrapingAll] = useState(false);
+  const [scrapeAllProgress, setScrapeAllProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const scrapeAll = async () => {
+    const active = sources.filter((s) => s.active);
+    if (active.length === 0) { toast.error("No active sources"); return; }
+    if (!confirm(`Scrape all ${active.length} active sources? This may take several minutes.`)) return;
+    setScrapingAll(true);
+    setScrapeAllProgress({ done: 0, total: active.length });
+    let inserted = 0, dupes = 0, failed = 0;
+    for (let i = 0; i < active.length; i++) {
+      const s = active[i];
+      setScrapingId(s.id);
+      try {
+        const { data, error } = await supabase.functions.invoke("scrape-firm-careers", {
+          body: { source_id: s.id },
+        });
+        if (error) throw error;
+        const d = data as { ok?: boolean; inserted?: number; duplicates?: number; error?: string };
+        if (d.ok === false || d.error) failed++;
+        else { inserted += d.inserted ?? 0; dupes += d.duplicates ?? 0; }
+      } catch { failed++; }
+      setScrapeAllProgress({ done: i + 1, total: active.length });
+    }
+    setScrapingId(null);
+    setScrapingAll(false);
+    setScrapeAllProgress(null);
+    toast.success(`Scrape all done — ${inserted} new, ${dupes} dupes, ${failed} failed`);
+    await load();
+  };
+
   const reject = async (row: QueueRow) => {
     const { error } = await supabase
       .from("vacancy_review_queue")
