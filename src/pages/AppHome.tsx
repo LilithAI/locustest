@@ -53,17 +53,6 @@ export default function AppHome() {
     let mounted = true;
 
     const init = async () => {
-      // If we landed here via Supabase implicit-flow callback (hash contains
-      // access_token), give the SDK a tick to call detectSessionInUrl, then
-      // strip the hash so tokens don't sit in the address bar / history.
-      if (typeof window !== "undefined" && window.location.hash.includes("access_token=")) {
-        // Wait briefly for supabase-js to ingest the hash and persist session.
-        await new Promise((r) => setTimeout(r, 50));
-        try {
-          window.history.replaceState(null, "", window.location.pathname + window.location.search);
-        } catch {}
-      }
-
       const {
         data: { session },
       } = await supabase.auth.getSession();
