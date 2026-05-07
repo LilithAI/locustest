@@ -1,50 +1,40 @@
-## Diagnosis
+## Problem
 
-Google sign-in uses `lovable.auth.signInWithOAuth("google")`, which redirects the browser to `/~oauth/initiate?...`. That path is **not** a route in the app — it's intercepted by Lovable's edge proxy worker, which forwards the user to `oauth.lovable.app`, then to Google, then back. If the proxy doesn't intercept, the SPA falls through to its own 404 ("Not Found").
+After Google sign-in, you land on `https://lexleaks.com/app#access_token=...&refresh_token=...&token_type=bearer`.
 
-Evidence from the logs:
-- `lovable.auth.signInWithOAuth` is wired correctly in `src/pages/Auth.tsx` and `src/integrations/lovable/index.ts`.
-- Two successful Google logins via the broker today at 15:06 / 15:07 on `locustest.lovable.app` — so the integration code itself works.
-- No PWA / service worker installed, so SW caching is not the cause.
-- The user now reports "Not Found" on **both** the preview and `lexleaks.com` → the `/~oauth/initiate` request is reaching the SPA instead of being intercepted by the Lovable proxy.
+That hash format is the **Supabase implicit-flow callback** — it means the request went straight to Supabase's `/auth/v1/callback` and Supabase redirected back to your `redirect_uri` (`/app`) with tokens in the URL hash. The Lovable Cloud OAuth broker (`/~oauth/*`) is **not** intercepting the return trip, otherwise the broker would call `setSession(tokens)` in code and there would be no hash in the URL.
 
-Most likely causes (in order):
-1. **Custom domain (`lexleaks.com`) not in `Active` state**, or DNS/proxy config drifted → the Lovable worker can't intercept `/~oauth/*` on that hostname.
-2. **The published deployment on `locustest.lovable.app` is stale** relative to the connector/integration regeneration that happened during the recent migration work, so the proxy mapping is out of sync. Republishing reconciles it.
-3. **Stale cached HTML / OAuth state** from a prior session sending the user to a path the new worker no longer recognises.
+Two things go wrong as a result:
+1. The URL is ugly and leaks tokens into browser history / referrer headers.
+2. On the custom domain (`lexleaks.com`), the broker proxy isn't catching the callback path either, which is why you previously saw "Not Found".
 
-## Fix plan
+## Root cause
 
-### Step 1 — Regenerate the Lovable Cloud Google connector
-Re-run the social-auth configure tool (`configure_social_auth` with `providers: ["google"]`). This:
-- Reinstalls/refreshes `@lovable.dev/cloud-auth-js` and `src/integrations/lovable/index.ts`.
-- Forces the workspace to re-emit the `/~oauth/*` route mapping for this project on both the preview and published hostnames.
+`src/integrations/lovable/index.ts` calls `lovableAuth.signInWithOAuth(...)`. When the broker route is reachable it returns `{ tokens }` and we call `supabase.auth.setSession(tokens)`. When it isn't reachable (or Google's redirect URI in Google Cloud is still pointed at Supabase's domain instead of `oauth.lovable.app`), the SDK falls back to a plain Supabase OAuth redirect — which is exactly what's happening here.
 
-### Step 2 — Republish
-Trigger a fresh publish so `locustest.lovable.app` and the lexleaks.com edge bindings pick up the regenerated OAuth proxy config.
+## Plan
 
-### Step 3 — Verify custom domain status
-Use the project URLs / domain status check to confirm `lexleaks.com` and `www.lexleaks.com` are **Active** (not Verifying / Offline / Failed). If Offline or Failed, surface the fix-DNS instructions to you — Lovable will not intercept `/~oauth/*` on a domain that isn't fully Active.
+1. **Confirm broker reachability on both domains**
+   - From the browser, hit `https://lexleaks.com/~oauth/initiate` and `https://locustest.lovable.app/~oauth/initiate` and check the response (should be a 302 to `oauth.lovable.app`, not 404 / SPA HTML).
+   - If either returns 404, the Cloudflare worker that owns `/~oauth/*` isn't bound to that hostname → re-add the custom domain or republish.
 
-### Step 4 — Smoke test
-After publish, test in this order, each in a fresh incognito window (to bypass cached state):
-1. `https://id-preview--7785818b-33d9-4330-9e64-6f30a1f4e2be.lovable.app/auth` → click Continue with Google.
-2. `https://locustest.lovable.app/auth` → same.
-3. `https://lexleaks.com/auth` → same.
+2. **Make `/app` gracefully handle the hash callback (defensive fix in code)**
+   - In `src/pages/AppHome.tsx`, before the "no session → redirect to /auth" check, detect `window.location.hash` containing `access_token=`, await `supabase.auth.getSession()` (so `detectSessionInUrl` can finish), then `history.replaceState` to strip the hash. This prevents the redirect-loop / blank state and removes the token from the URL bar even when the broker isn't used.
 
-For each, network panel should show a 302/redirect from `/~oauth/initiate` to `oauth.lovable.app`, **not** a 200 with the SPA's NotFound HTML. If any one still 404s, capture the response of `/~oauth/initiate` from that hostname so we can tell whether the proxy is missing or returning an error.
+3. **Verify Google Cloud Console redirect URI**
+   - The OAuth client's "Authorized redirect URIs" must include `https://oauth.lovable.app/callback` (the broker) — not just `https://wksqrdinlrgkjnncanui.supabase.co/auth/v1/callback`. If only the Supabase URI is configured, the broker route can never complete and the SDK will keep falling back to the implicit hash flow.
 
-### Step 5 — If lexleaks.com still 404s after Active + republish
-Fall back to either:
-- Re-add the custom domain in Project Settings → Domains (this re-registers the OAuth allowlist entry), or
-- Enable Cloudflare/proxy mode if the domain is fronted by Cloudflare, since A-record vs CNAME setup affects how `/~oauth/*` is intercepted.
+4. **Smoke test**
+   - Incognito on `lexleaks.com/auth` → Continue with Google → expect to land on `/app` with a clean URL (no `#access_token`) and a logged-in session.
+   - Repeat on `locustest.lovable.app` and the preview URL.
 
-## What this plan does NOT change
+## Technical notes
 
-- No code changes to `Auth.tsx` or any OAuth call sites — they're already correct.
-- No Supabase auth provider edits — managed Google OAuth is already enabled (auth logs confirm).
-- No new admin / login UI work.
+- Files touched: `src/pages/AppHome.tsx` only (small defensive hash-cleanup block). No changes to `src/integrations/lovable/index.ts` (auto-generated).
+- No DB migrations.
+- The Google Cloud Console step (3) is something only you can verify — I'll point to where to check.
+- If step 1 shows the broker is 404 on `lexleaks.com`, the real fix is on the hosting / custom-domain side (re-add domain, republish), not in app code.
 
-## Open question (non-blocking)
+## Open question
 
-If after Step 1-2 you still see "Not Found" on the **preview** specifically, the most informative next step is for you to open DevTools → Network on the failing page, click Continue with Google, and tell me what the response status of the `/~oauth/initiate` request is (or screenshot it). That pinpoints whether the proxy is missing entirely (404 from origin), misrouted (HTML payload), or erroring (5xx).
+Before I implement, I need one piece of info — see the question below.
