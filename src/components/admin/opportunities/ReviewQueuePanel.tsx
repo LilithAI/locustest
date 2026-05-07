@@ -305,6 +305,22 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
         </div>
       ) : (
         <div className="grid gap-2">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
+              {sources.filter((s) => s.active).length} active / {sources.length} total
+              {scrapeAllProgress && ` · ${scrapeAllProgress.done}/${scrapeAllProgress.total}`}
+            </div>
+            <Button
+              size="sm"
+              variant="default"
+              disabled={scrapingAll}
+              onClick={scrapeAll}
+              className="font-bold border-2 border-foreground shadow-[2px_2px_0_0_hsl(var(--foreground))]"
+            >
+              {scrapingAll ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              {scrapingAll ? `Scraping ${scrapeAllProgress?.done}/${scrapeAllProgress?.total}` : "Scrape all active"}
+            </Button>
+          </div>
           {sources.map((s) => (
             <Card key={s.id} className="border-2 border-foreground p-3">
               <div className="flex items-start justify-between gap-3 flex-wrap">
