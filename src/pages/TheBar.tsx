@@ -61,9 +61,7 @@ export default function TheBar() {
       const { data, error } = await supabase.rpc("get_bar_dashboard", {
         p_user_id: userId,
       });
-      if (error || !data) {
-        return { ok: false as const, error };
-      }
+      if (error || !data) return { ok: false as const, error };
       return { ok: true as const, data };
     };
 
