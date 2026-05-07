@@ -198,6 +198,27 @@ export default function FirmDrawer({ firm, type, open, onOpenChange }: FirmDrawe
             )}
           </div>
 
+          {/* Firm Intelligence CTA */}
+          {hasIntelligence && firm.firm_slug && (
+            <Link
+              to={`/directory/firm/${firm.firm_slug}`}
+              className="block bg-card border-2 border-foreground rounded-lg p-3 shadow-[3px_3px_0_0_hsl(var(--accent))] hover:shadow-[5px_5px_0_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-all group"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-md bg-accent text-accent-foreground border-2 border-foreground shrink-0">
+                    <Sparkles size={14} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-foreground">Open Firm Intelligence</div>
+                    <div className="text-[11px] text-muted-foreground">Partners, offices, practice areas…</div>
+                  </div>
+                </div>
+                <ArrowRight size={16} className="shrink-0 text-accent group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </Link>
+          )}
+
           {/* Actions */}
           <div className="space-y-2">
             {draftTarget && (
