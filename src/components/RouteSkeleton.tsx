@@ -285,7 +285,9 @@ const shapeMap: Record<Shape, () => JSX.Element> = {
 };
 
 export default function RouteSkeleton() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const pathname = useRouterState({
+    select: (s) => s.resolvedLocation?.pathname ?? s.location.pathname,
+  });
   const shape = getShape(pathname);
   const ShapeComponent = shapeMap[shape];
 

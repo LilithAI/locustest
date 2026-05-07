@@ -1,53 +1,44 @@
-# Fix plan: Site-wide navigation lag + router crash
+## Problem
 
-## Symptoms (site-wide, not just Playbook)
-- Click any nav link → URL updates immediately, but the old page stays mounted for ~1s before the new one appears.
-- Intermittent runtime error: `TypeError: undefined is not an object (evaluating 'match._nonReactive')` from `@tanstack/react-router`.
+Before the recent refactor the site felt smooth because *something* always painted a skeleton between page A and page B. After moving to native TanStack APIs and a Suspense-only fallback, the skeleton almost never fires:
 
-## Root cause
-The app runs on TanStack Router, but almost every shared component still navigates through a `react-router-dom` compatibility shim (`src/lib/rrd.tsx`) aliased in `vite.config.ts`. The shim wraps TanStack's `Link`, `useLocation`, `useNavigate`, `Navigate`, `useParams`, `useSearchParams`.
+- Routes in `src/routes/` are **not** lazy-split (no `createLazyFileRoute`, no `lazyRouteComponent`), so clicking a link does **not** suspend the `<Suspense>` we put around `<Outlet />` in `_layout.tsx`. Result: old page stays mounted, then new page snaps in once data finishes — exactly what the user is reporting.
+- TanStack Router internally wraps navigations in a React transition, so even when a child component does suspend, React keeps the old UI on screen until the new one is ready (no fallback).
+- `defaultPreload: false` removed the only thing that used to mask the gap.
 
-Two real consequences:
-1. The shim's `Link` passes `to` as a plain string with no `params`/typing, and its `useNavigate` calls `tnav({ to: to as never })`. Combined with `defaultPreload: "intent"` and code-split routes, TanStack starts a transition, commits the URL, but the lazy chunk + match resolution finishes a beat later — so the old page stays painted until the new chunk is ready. There is no Suspense boundary tight enough around the route to show the skeleton during that gap.
-2. The shim's `useLocation` rebuilds an object every render and is consumed inside the Suspense fallback (`RouteSkeleton` uses `react-router-dom`'s `useLocation`). During a transition this reads router state at a moment when the new match's `_nonReactive` slot isn't populated yet → the crash seen in the console.
+So the Suspense boundary I added is essentially dead code for navigations.
 
-This affects every route, which matches what you're seeing.
+## Fix (frontend only, presentation layer)
 
-## What I'll change
+Drive the skeleton off the router's transition/pending state directly, not off Suspense.
 
-1. Move shared shell components off the shim onto native TanStack Router APIs.
-   - `src/components/Navbar.tsx`
-   - `src/components/MobileBottomDock.tsx`
-   - `src/components/Footer.tsx`
-   - `src/components/Layout.tsx`
-   - `src/components/AdminNavLink.tsx`
-   - `src/components/RouteSkeleton.tsx` (critical — it runs during the transition)
-   - `src/pages/NotFound.tsx`
-   Use `Link`, `useRouterState({ select: s => s.location.pathname })`, and `useNavigate` directly from `@tanstack/react-router`.
+### 1. `src/routes/_layout.tsx` — overlay skeleton during transitions
+- Remove the `<Suspense fallback={<RouteSkeleton />}>` wrapper around `<Outlet />` (it never triggers for non-lazy routes).
+- Add a small inner component `RouteTransitionShell` that:
+  - Reads `useRouterState({ select: s => ({ status: s.status, isLoading: s.isLoading, isTransitioning: s.isTransitioning, pathname: s.location.pathname }) })`.
+  - Tracks the *committed* pathname in a ref. When `pathname` changes OR `status !== 'idle'` OR `isLoading` / `isTransitioning` is true, render `<RouteSkeleton />` in place of `<Outlet />`.
+  - Once the router settles on the new pathname (status `idle`, not transitioning), render `<Outlet />`.
+- Keep `<Navbar />`, `<Footer />`, `<MobileBottomDock />`, `<BetaBanner />` mounted around it so chrome doesn't flash.
 
-2. Tighten the loading boundary so transitions feel instant.
-   - Wrap `<Outlet />` in `_layout.tsx` with its own `Suspense` + `RouteSkeleton` fallback (currently only the root has one, above the navbar).
-   - Result: clicking a nav link immediately swaps page content for the route-shaped skeleton instead of leaving the previous page on screen.
+### 2. `src/router.tsx` — re-enable preload + tune pending
+- Restore `defaultPreload: "intent"` and add `defaultPreloadDelay: 50`.
+- Add `defaultPendingComponent: RouteSkeleton`, `defaultPendingMs: 0`, `defaultPendingMinMs: 150` so any future loader-bearing route also gets the skeleton with a non-flickery minimum.
+- Keep `scrollRestoration: true`.
 
-3. Reduce the fragile preload behavior that's contributing to the `_nonReactive` race.
-   - Switch `defaultPreload` from `"intent"` to `false` in `src/router.tsx` while we stabilize, OR keep `"intent"` but stop calling `prefetchRoute` on `onTouchStart`/`onMouseEnter` from the shim'd `Link`. We'll pick one based on which keeps the perceived speed without the crash (default: disable global intent preload, keep explicit `prefetchRoute` calls only).
+### 3. `src/components/RouteSkeleton.tsx` — make it transition-safe
+- Already reads pathname via `useRouterState({ select })` (good).
+- Add a second selector for `s.location.pathname` of the *resolved* (incoming) location so the skeleton shape matches the destination, not the origin: select `s.resolvedLocation?.pathname ?? s.location.pathname`. This ensures clicking from `/` to `/playbook` shows the article/cardGrid skeleton immediately.
+- No other changes; styling unchanged.
 
-4. Shrink the shim's surface so the rest of the codebase can keep compiling.
-   - Keep `src/lib/rrd.tsx` available for the long tail of pages that still import from `react-router-dom`, but make its `Link` and `useNavigate` thin re-exports of TanStack's so behavior is identical to native usage.
-   - No mass page rewrite in this pass — only the shell + nav components above.
+### 4. Verify
+Click through Home → Directory → Playbook → Resources → Tools → The Bar → Opportunities and confirm:
+- URL changes
+- Skeleton (route-shaped) appears instantly
+- New page renders
+- No `match._nonReactive` console error
+- Back/forward also shows skeleton
 
-5. Verify.
-   - Click through Home → Directory → Opportunities → Playbook → Resources → Tools → The Bar.
-   - Each nav click should: (a) URL changes, (b) skeleton appears immediately, (c) new page renders.
-   - Console should be clean of `match._nonReactive`.
-   - If anything still hangs, capture the failing route and iterate (likely a stray `react-router-dom` import inside that page).
-
-## Out of scope (intentionally)
-- No backend, email, auth, or Supabase changes.
-- No rewrite of every page that still imports from `react-router-dom` — those keep working through the (now thinner) shim.
-- No design or copy changes.
-
-## Technical notes
-- TanStack Router's `Link` with a plain string `to` is supported — we don't need to retrofit `params={{...}}` everywhere.
-- `useRouterState({ select })` is the correct way to read pathname without re-rendering on every router state change.
-- The Suspense boundary inside `_layout` will use the same `RouteSkeleton` so the shell (Navbar/Footer/Dock) stays mounted while only the page content swaps — exactly the "instant" feel that's missing today.
+## Out of scope
+- No backend, auth, email, or Supabase changes.
+- No edits to individual page components or the `react-router-dom` shim.
+- No conversion of routes to lazy file routes (could be a later optimization; not needed to fix the perceived smoothness).
