@@ -218,12 +218,14 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
         <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-accent" /></div>
       ) : tab === "queue" ? (
         <div className="grid gap-3">
-          {rows.length === 0 && (
+          {filteredRows.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Queue is empty. Sources are scraped weekly (Sun 02:00 IST), or trigger one manually from the Sources tab.
+              {rows.length === 0
+                ? "Queue is empty. Sources are scraped weekly (Sun 02:00 IST), or trigger one manually from the Sources tab."
+                : `No India postings in the queue. ${rows.length} non-India row(s) hidden — toggle "India only" off to see them.`}
             </p>
           )}
-          {rows.map((r) => {
+          {filteredRows.map((r) => {
             const ext = r.ai_extracted || {};
             return (
               <Card key={r.id} className="border-2 border-foreground p-4">
@@ -243,11 +245,14 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
                       <div className="text-xs text-foreground mt-1">Deadline: {ext.deadline}</div>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <Button asChild size="sm" variant="outline">
                       <a href={r.source_url} target="_blank" rel="noreferrer noopener">
                         <ExternalLink size={14} />
                       </a>
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setPreviewing(r)}>
+                      <Eye size={14} className="mr-1" /> Preview
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => reject(r)}>
                       <X size={14} className="mr-1" /> Reject
