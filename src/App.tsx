@@ -13,6 +13,26 @@ if (typeof window !== "undefined") {
     const target = "https://locus.legal" + window.location.pathname + window.location.search + window.location.hash;
     window.location.replace(target);
   }
+
+  // Rescue legacy Supabase implicit-flow OAuth redirects that land on an
+  // arbitrary path with `#access_token=...` in the hash. Without this, an old
+  // build (or a cached redirect URL) would render the 404 page while leaking
+  // tokens in the URL bar. Consume the tokens, set the session, and bounce to
+  // the intended post-login page.
+  if (window.location.hash.includes("access_token=")) {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    if (access_token && refresh_token) {
+      void supabase.auth
+        .setSession({ access_token, refresh_token })
+        .finally(() => {
+          const next = sessionStorage.getItem("post_oauth_redirect") || "/app";
+          sessionStorage.removeItem("post_oauth_redirect");
+          window.location.replace(next);
+        });
+    }
+  }
 }
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner, toast } from "@/components/ui/sonner";
