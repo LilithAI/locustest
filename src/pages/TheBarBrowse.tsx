@@ -277,10 +277,10 @@ export default function TheBarBrowse() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-48 w-full" />)}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : pageItems.length === 0 ? (
           <Card className="border-2 border-dashed border-border p-12 text-center">
             <p className="text-muted-foreground">
-              {!isGuest && challenges.length === 0
+              {!isGuest && total === 0
                 ? "You've attempted every available challenge. Come back when new ones drop."
                 : "No challenges match your filters. Try broadening."}
             </p>
