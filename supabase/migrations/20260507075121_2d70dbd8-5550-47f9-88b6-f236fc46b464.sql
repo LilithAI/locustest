@@ -1,0 +1,1 @@
+ALTER TABLE public.firm_profiles ADD COLUMN IF NOT EXISTS locus_take TEXT;

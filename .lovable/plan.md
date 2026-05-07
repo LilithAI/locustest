@@ -1,153 +1,95 @@
+## Goals
 
-# Firm Intelligence — Plan
-
-Upgrade the directory so the top ~95 firms (Tier 1–3, the ones we scraped) get a rich, dedicated profile with people, practices, offices, and careers info. Tier 4 / Google-Maps-sourced firms keep today's lightweight card + drawer (zero regression).
-
-We brand the whole thing as **"Firm Intelligence"** — a small accent badge that signals "this firm has the deep dossier."
+1. Fix back-button overlap with the fixed Navbar.
+2. Reframe `/directory/firm/:slug` so it actually feels like **Intelligence**, not just a longer card. Hybrid layout: applicant-focused at top + analytical signals below. No peer comparison.
 
 ---
 
-## UX flow (3 surfaces)
+## 1. Layout fixes (FirmProfile.tsx)
 
-```text
-Directory card                Drawer (existing)             Full Intelligence page (NEW)
-┌─────────────────┐           ┌─────────────────┐           ┌─────────────────────────┐
-│ Firm name       │   click   │ Name + chips    │   click   │ Header + stats          │
-│ Tier · Type     │ ───────►  │ Contact         │ ───────►  │ About / Practices       │
-│ ✦ Intelligence  │           │ Draft email     │           │ Offices / People        │
-│ Address · Email │           │ ✦ OPEN FIRM     │           │ Contact / Links         │
-└─────────────────┘           │   INTELLIGENCE  │           │ Suggest a fix           │
-                              │ Suggest a fix   │           └─────────────────────────┘
-                              └─────────────────┘
+- Add top padding to `<main>` so content clears the fixed Navbar (e.g. `pt-24 md:pt-28`).
+- Move the "Back to directory" link into a sticky-ish row inside the page container, below navbar offset. Style as a pill button (border + bg) so it never visually collides with floating nav.
+- Tighten section spacing on desktop (currently a lot of vertical air between blocks).
+
+## 2. Data coverage reality check
+
+Out of 95 firms:
+- 75 have descriptions, 69 have practice areas, 56 have phone, 54 LinkedIn, 51 careers URL — **strong**
+- Only 18 have team members or lawyer/partner counts — **weak**
+- 28 have full office addresses, 58 have founded year — **medium**
+
+Implication: page must look smart **without** team data for ~80% of firms. Computed signals + AI take fill that gap.
+
+## 3. New section: "Locus Take" (AI summary, pre-generated)
+
+- Add column `locus_take TEXT` to `firm_profiles`.
+- One-off batch script (server function, admin-triggered): for each firm, send `{name, description, practice_areas, offices, founded_year, hq_city}` to Lovable AI (`google/gemini-2.5-flash`) and store a 2–3 paragraph analyst summary covering: positioning, practice strengths, geographic footprint, who this firm fits.
+- Render at top of page in a callout card with `Sparkles` icon and "Locus Take" label.
+
+## 4. New section: "Intelligence Signals" (computed, no extra data needed)
+
+A grid of 4–6 chips/badges derived from existing fields:
+
+- **Practice breadth**: count of practice areas → label (Boutique <5, Focused 5–10, Full-service 10–20, Mega-practice 20+).
+- **Geographic reach**: office count → (Single-city, Regional 2–3, National 4–6, Pan-India 7+).
+- **Firm maturity**: years since `founded_year` → (Emerging <10y, Established 10–25y, Legacy 25y+).
+- **Hiring signal**: present if `careers_url` OR `careers_email` exists → "Actively hiring — careers channel live".
+- **Direct contact**: present if `careers_email` exists → "Direct careers email available".
+- **Press visibility**: present if `linkedin_url` AND `twitter_url` → "Active on LinkedIn + Twitter".
+
+Each signal: small card with icon, headline, one-line explanation. Hide signals whose source data is missing.
+
+## 5. New section: "Practice Focus" (visual)
+
+Replace flat chip list with a categorised view:
+- Group `practice_areas` into buckets (Corporate, Disputes, Regulatory, IP, Tax, TMT, Real Estate, Employment, Others) via a simple keyword map.
+- Show as a 2–3 column layout with bucket headers and the matched chips inside, plus a small "Areas: N" counter.
+- Falls back to flat chip list if no bucket matches.
+
+## 6. Reorganised page order
+
+```
+[Back pill]
+[Header: name, badges, HQ, primary CTAs]                  ← compacted
+[Locus Take]                                              ← NEW, AI
+[Intelligence Signals — 6-up grid]                        ← NEW, computed
+[At-a-glance stats — same as today, smaller]
+[Practice Focus — bucketed]                               ← upgraded
+[About — collapsible if long]
+[Offices — same]
+[People — only if data exists, else hidden, no empty state]
+[Contact & links]
+[Suggest a fix link → existing flow]
 ```
 
-1. **Card** — small `✦ Intelligence` pill next to the existing tier/type chips, only when a firm has a profile row. Card click still opens the drawer (no behavior change).
-2. **Drawer** — unchanged layout, but for firms with intel we add ONE prominent CTA above "Draft Application Email":
+People section: stop showing the "Team data unavailable" empty state — just omit the section. Replaces with a small "View team on firm site →" if `team_page_url` exists.
 
-   ```
-   ┌───────────────────────────────────┐
-   │ ✦ Open Firm Intelligence      → │
-   │ Partners, offices, practices…     │
-   └───────────────────────────────────┘
-   ```
+## 7. Out of scope
 
-3. **Full page** — `/directory/firm/$slug`, SSR'd, shareable, indexable.
-
-Icon: `Sparkles` (lucide) in accent yellow, matching existing neobrutalist style. Reusable component `<FirmIntelligenceBadge />` so we keep one source of truth.
-
----
-
-## 1. Data layer — `firm_profiles` table
-
-New Supabase table keyed by `firm_slug` (TEXT PK — matches the CSV and pairs cleanly with `firm_suggestions.firm_id`).
-
-Columns mirror the CSV roughly 1:1; JSON for repeating data:
-
-```text
-firm_slug          text  PK
-firm_name          text  not null
-website_url        text
-tagline            text
-description        text
-founded_year       int
-hq_city            text
-offices            text[]            -- semicolon-split city list
-office_count       int
-office_addresses   jsonb             -- raw blob from scraper
-practice_areas     text[]
-total_lawyers      int
-partner_count      int
-team_members       jsonb             -- [] for most rows; raw when present
-general_email      text
-careers_email      text
-press_email        text
-phone_main         text
-linkedin_url       text
-twitter_url        text
-careers_url        text
-team_page_url      text
-last_scraped_at    timestamptz
-scrape_status      text              -- success | partial | failed
-created_at / updated_at
-```
-
-RLS:
-- public `SELECT` (read-only directory data, fine for SSR + anon)
-- `INSERT/UPDATE/DELETE` only via `is_admin(auth.uid())`
-
-Index on `firm_slug` (PK gives this) + GIN on `practice_areas` for future filtering.
-
-**Seed**: one-shot import of `locus_firm_intelligence.csv` (95 rows) via the insert tool — raw, no normalization. UI handles cleanup.
-
-**Linking to existing `firms.json`**: backfill a `firm_slug` field on the ~95 top entries via a one-off Node script (slug-match by name with a manual mapping JSON for ambiguous cases). Tier 4 entries stay slug-less → no profile → drawer stays exactly as today.
-
----
-
-## 2. Directory list — Intelligence badge
-
-In `Directory.tsx`, when a card's `firm_slug` exists in `firm_profiles`, render `<FirmIntelligenceBadge size="sm" />` next to the tier/type chips. Click on card → still opens the drawer.
-
-Optional small filter chip in `FilterBar`: **"Intelligence only"** to narrow the list to enriched firms.
-
----
-
-## 3. Drawer — adds "Open Firm Intelligence" CTA
-
-`FirmDrawer.tsx`: when `firm.firm_slug` resolves to a profile (loaded via the same server fn used by the page, cached in TanStack Query), render the new accent CTA above "Draft Application Email":
-
-- Neobrutalist style (matches existing "Suggest a fix" card)
-- `Sparkles` icon, label "Open Firm Intelligence"
-- Subtitle: "Partners, offices, practice areas…"
-- `<Link to="/directory/firm/$slug" params={{ slug }}>`
-
-If no profile → drawer renders exactly as today. No info added inline (keeps it fast).
-
----
-
-## 4. Full Intelligence page — `/directory/firm/$slug`
-
-New route file: `src/routes/directory.firm.$slug.tsx`. SSR loader via `createServerFn` reading `firm_profiles`; `notFoundComponent` if missing.
-
-SEO: `head()` with `{firm_name} — Firm Intelligence | Locus`, description from tagline, og:title/description. Canonical `/directory/firm/{slug}`.
-
-Sections (each hides if its data is empty — "import as-is, clean in UI"):
-
-1. **Header** — name, `✦ Firm Intelligence` badge, tier badge, HQ city, share button, primary CTA "Draft Application Email" (uses `careers_email` > `general_email`).
-2. **At-a-glance stats strip** — offices · practice areas · lawyers · partners · founded year (icons + numbers).
-3. **About** — tagline + description paragraph.
-4. **Practice areas** — full chip grid, alphabetised.
-5. **Offices** — cards per city with parsed address snippet (best-effort regex on the blob); raw blob in expandable "Full address" if parse fails.
-6. **People** — grid of `team_members` when present; otherwise empty-state pointing to the firm's `team_page_url` ("Team page is JS-rendered — view on firm site →").
-7. **Contact & links** — emails (general / careers / press), phone, website, LinkedIn, Twitter, careers page.
-8. **Suggest a fix** — reuses existing `SuggestFixDialog`, `firm_id` = slug.
-
-Mobile (≤640px): header stacks, stats wrap 2×2, sections become accordions.
-
----
-
-## 5. Out of scope (now)
-
-- Re-running the scraper from inside the app (separate effort — `firm_careers_sources` already exists for vacancies, profile re-scrape can piggyback later).
-- Admin editor for profile fields (the `firm_suggestions` queue already covers user-reported corrections).
+- Peer comparison / percentile ranking (user said no).
 - Per-lawyer pages.
-- Auto-generating profile rows from new firms in `firms.json` (manual seed for now).
+- Live re-scraping from the app.
+- Editing data in the UI.
 
 ---
 
-## File map
+## Technical notes
 
-**Add**
-- `supabase/migrations/<ts>_firm_profiles.sql` — table + RLS + indexes
-- `src/server/firm-profiles.functions.ts` — `getFirmProfile(slug)`, `listFirmProfileSlugs()`
-- `src/routes/directory.firm.$slug.tsx` — full page
-- `src/components/directory/FirmIntelligenceBadge.tsx` — shared badge
-- `src/components/directory/FirmIntelligenceCTA.tsx` — drawer CTA card
-- `src/components/firm-profile/` — section components (Header, Stats, Offices, People, Contact)
+**Files to edit**
+- `src/pages/FirmProfile.tsx` — layout fix, new sections, reorder.
+- `src/lib/firm-profiles.ts` — add `locus_take` to type; add helpers `computeSignals(profile)` and `bucketPracticeAreas(areas)`.
 
-**Edit**
-- `src/components/FirmDrawer.tsx` — fetch profile flag, render CTA when present
-- `src/pages/Directory.tsx` — render badge on cards with intel; load slug list once
-- `src/data/firms.json` — backfill `firm_slug` on top ~95 firms (one-off Node script)
+**New files**
+- `src/server/firm-intelligence.functions.ts` — admin-only `generateLocusTakes()` server fn that loops firms missing `locus_take` and calls Lovable AI Gateway.
+- (optional) one-off admin button on `AdminFirmSuggestions` or a hidden trigger to invoke it once.
 
-**Data import**
-- After migration approval: one batch INSERT of 95 rows from CSV via the insert tool.
+**DB migration**
+- `ALTER TABLE firm_profiles ADD COLUMN locus_take TEXT;`
+
+**AI**
+- Lovable AI Gateway, model `google/gemini-2.5-flash`, no user API key needed.
+- Prompt enforces: no fabrication, only reflect provided fields, neutral analyst tone, ~150 words.
+
+**Visual style**
+- Keep neobrutalist tokens (border-2, accent shadows). Locus Take card uses `bg-accent/5` with `border-accent/30` to differentiate.
+- All colors via semantic tokens.
