@@ -49,8 +49,8 @@ const SCALAR_KEYS: Array<keyof Extracted> = [
 export default function AdminFirmEdit() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { allowed, loading: roleLoading } = useAdminAccess();
-  usePageMeta({ title: `Edit firm intelligence — ${slug}` });
+  const { isAdmin, ready } = useAdminAccess();
+  usePageMeta({ title: `Edit firm intelligence — ${slug}`, description: "Admin tool to update firm directory data." });
 
   const [current, setCurrent] = useState<CurrentFirm | null>(null);
   const [mode, setMode] = useState<"text" | "pdf">("text");
