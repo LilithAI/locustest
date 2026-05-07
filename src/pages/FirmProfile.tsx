@@ -118,22 +118,28 @@ export default function FirmProfile() {
         </div>
       </header>
 
-      {/* At a glance */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-        <Stat label="Offices" value={firm.offices.length || "—"} />
-        <Stat label="Practice areas" value={firm.practice_areas.length || "—"} />
-        <Stat label="Partner ratio" value={firm.partner_associate_ratio != null ? `${firm.partner_associate_ratio}` : "—"} />
-        <Stat label="News (90d)" value={firm.news.length || "—"} />
-      </section>
+      {/* Confidence strip */}
+      {lowConfidence && (
+        <div className="mb-8 border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 rounded-xl px-4 py-3 text-sm">
+          Limited data — some fields on this profile are not yet verified. Confidence {completenessPct}%.
+        </div>
+      )}
 
-      {/* Signature practices */}
+      {/* Footprint */}
+      {footprint && (
+        <Section title="Footprint">
+          <p className="text-base">{footprint}</p>
+        </Section>
+      )}
+
+      {/* Signature practices — only when we have rare ones */}
       {signaturePractices.length > 0 && (
-        <Section title="Signature practices">
+        <Section title="What sets them apart">
+          <p className="text-xs text-muted-foreground mb-3">Practice areas this firm covers that fewer than 30% of comparable firms do.</p>
           <div className="flex flex-wrap gap-2">
             {signaturePractices.map((p) => (
               <span key={p.area} className="inline-flex items-center gap-1.5 text-sm bg-accent/10 text-accent border border-accent/30 px-3 py-1.5 rounded-full font-medium">
                 {p.area}
-                {p.depth_score != null && <span className="text-xs opacity-70">· {Math.round(p.depth_score * 100)}%</span>}
               </span>
             ))}
           </div>
@@ -142,12 +148,41 @@ export default function FirmProfile() {
 
       {/* All practice areas */}
       {firm.practice_areas.length > 0 && (
-        <Section title="All practice areas">
+        <Section title={`All practice areas (${firm.practice_areas.length})`}>
           <div className="flex flex-wrap gap-2">
             {firm.practice_areas.map((p) => (
               <span key={p.area} className="text-xs bg-muted text-muted-foreground px-2.5 py-1 rounded-full">{p.area}</span>
             ))}
           </div>
+        </Section>
+      )}
+
+      {/* Offices — chips when we only have city names, cards only when there's a real address */}
+      {cleanOffices.length > 0 && (
+        <Section title="Office presence">
+          {cleanOffices.some((o) => o.address) ? (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {cleanOffices.filter((o) => o.address || o.is_hq).map((o) => (
+                <div key={o.id} className="border border-border/60 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold">{o.city}</h3>
+                    {o.is_hq && <span className="text-[10px] font-bold bg-accent text-accent-foreground px-1.5 py-0.5 rounded">HQ</span>}
+                  </div>
+                  {o.address && <p className="text-xs text-muted-foreground whitespace-pre-line line-clamp-3">{o.address}</p>}
+                  {o.phone && <a href={`tel:${o.phone}`} className="text-xs text-accent block mt-1">{o.phone}</a>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {cleanOffices.map((o) => (
+                <span key={o.id} className="inline-flex items-center gap-1.5 text-sm bg-muted px-3 py-1.5 rounded-full">
+                  <MapPin size={12} /> {o.city}
+                  {o.is_hq && <span className="text-[10px] font-bold bg-accent text-accent-foreground px-1.5 py-0.5 rounded">HQ</span>}
+                </span>
+              ))}
+            </div>
+          )}
         </Section>
       )}
 
