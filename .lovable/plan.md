@@ -1,36 +1,28 @@
-## Why the dashboard is empty
+## Problem
 
-`AdminDashboard` uses `useAdminAccess().hasScope(...)` to decide which tool tiles to render. With auth bypassed there's no logged-in user, so `scopes = []`, `isAdmin = false`, and every tile is filtered out → empty grid.
+In the screenshot, the Lawctopus-imported vacancies show only **Apply on portal** — no **Draft application** button. That's because the current condition in `VacancyCard.tsx` is:
 
-## Fix (two parts)
-
-### 1. Make `useAdminAccess` pretend to be full admin while bypass is on
-
-In `src/hooks/useAdminRole.ts`, add a top-level constant `ADMIN_BYPASS = true` (matches the temp banner in `AdminLayout`). When true, `useAdminAccess` returns:
-- `ready: true`
-- `isAdmin: true`
-- `scopes: [all five ADMIN_SCOPES]`
-- `hasScope: () => true`
-- `hasAnyScope: true`
-
-This makes every admin page render its full UI without a session. Skips the Supabase `user_roles` lookup entirely while bypass is on. RLS will still block actual writes from the unauthenticated browser, but the layout and tile listings will fill in.
-
-### 2. Grant real `admin` role to `heyjeetttt@gmail.com` (via migration)
-
-So when bypass is removed later, that account already has full access:
-
-```sql
-insert into public.user_roles (user_id, role)
-select u.id, 'admin'::public.app_role
-from auth.users u
-where lower(u.email) = 'heyjeetttt@gmail.com'
-on conflict (user_id, role) do nothing;
+```ts
+onApply && (vacancy.application_email || !vacancy.application_url)
 ```
 
-### 3. Update memory
+These vacancies have an `application_url` (the Lawctopus fallback) but no `application_email`, so the Draft button is hidden. This contradicts the original intent ("both buttons should be here").
 
-Update `mem://constraints/admin-auth-bypass` to note the `ADMIN_BYPASS` constant in `useAdminRole.ts` must also be flipped back to `false` when re-locking admin.
+## Fix
 
-## Out of scope
-- No changes to RLS policies — the DB still requires a real admin session for writes. If a specific admin write fails in preview, deal with it then.
-- No removal of the TEMP banner.
+### `src/components/vacancies/VacancyCard.tsx` (idle-state footer)
+
+- Change the Draft application render condition to simply `onApply` — show it whenever an `onApply` handler is provided, regardless of whether `application_email` is set or not.
+- Keep Apply on portal rendering unchanged (only when `vacancy.application_url` exists).
+- Result: when both an email and a portal URL exist → both buttons. When only portal → both buttons (Draft will let user compose a generic email / use the existing draft flow). When only email → only Draft.
+
+### Variant choice
+
+- If `application_url` exists → Draft application uses `variant="outline"`, Apply on portal is the primary filled button (current behavior).
+- If no `application_url` → Draft application uses `variant="default"` (current behavior).
+
+### Out of scope
+
+- No DB / schema changes.
+- No changes to draft-email dialog logic — it already handles vacancies without an email by prompting for one or using a fallback.
+- No changes to Applied / Follow-up / Closed states.
