@@ -243,6 +243,7 @@ const App = () => (
                     <Route path="broadcasts" element={<AdminBroadcasts />} />
                     <Route path="admins" element={<AdminAdmins />} />
                     <Route path="insights" element={<AdminInsights />} />
+                    <Route path="firm-intelligence" element={<AdminFirmIntelligence />} />
                   </Route>
                   <Route path="/vacancies" element={<Navigate to="/opportunities" replace />} />
                   <Route path="/opportunities" element={<Opportunities />} />
