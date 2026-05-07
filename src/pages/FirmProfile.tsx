@@ -20,6 +20,7 @@ export default function FirmProfile() {
 
   usePageMeta({
     title: firm ? `${firm.firm_name} — Firm Intelligence | Locus` : "Firm Intelligence | Locus",
+    description: firm ? `Firm intelligence profile for ${firm.firm_name}.` : "Firm intelligence profile.",
   });
 
   if (loading) {
