@@ -176,14 +176,11 @@ export default function CompareBar({ selected, onRemove, onClear }: CompareBarPr
                 {/* Signature practices overlap row */}
                 <tr className="border-b border-border/30">
                   <td className="py-3 px-3 text-muted-foreground font-medium text-xs uppercase tracking-wider whitespace-nowrap">Signature focus</td>
-                  {selected.map((f) => {
-                    const i = intelOf(f.name);
-                    return (
-                      <td key={f.name} className="py-3 px-3 align-top">
-                        <span className="text-xs italic text-muted-foreground">Open profile for full breakdown</span>
-                      </td>
-                    );
-                  })}
+                  {selected.map((f) => (
+                    <td key={f.name} className="py-3 px-3 align-top">
+                      <span className="text-xs italic text-muted-foreground">Open profile for full breakdown</span>
+                    </td>
+                  ))}
                 </tr>
               </tbody>
             </table>
