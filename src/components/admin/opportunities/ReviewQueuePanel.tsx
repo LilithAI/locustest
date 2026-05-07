@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw, ExternalLink, Check, X, AlertTriangle, Eye } from "lucide-react";
+import VacancyCard from "@/components/vacancies/VacancyCard";
+import type { Vacancy } from "@/lib/vacancies";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -340,49 +342,61 @@ function PreviewDialog({
 }) {
   if (!row) return null;
   const ext = row.ai_extracted || {};
-  const Field = ({ label, value }: { label: string; value: any }) =>
-    value ? (
-      <div>
-        <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">{label}</div>
-        <div className="text-sm whitespace-pre-wrap break-words">{String(value)}</div>
-      </div>
-    ) : null;
+  const now = new Date().toISOString();
+  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const mode = ext.application_mode === "email" || (!ext.apply_url && ext.application_email)
+    ? "email"
+    : "external_url";
+
+  const previewVacancy: Vacancy = {
+    id: `preview-${row.id}`,
+    firm_name: row.source_firm || "Unknown firm",
+    role: ext.role || row.source_title || "(no role)",
+    opportunity_type: ext.opportunity_type === "job" ? "job" : "internship",
+    location: ext.location || null,
+    application_mode: mode,
+    application_email: mode === "email" ? (ext.application_email || null) : null,
+    application_url: mode === "external_url" ? (ext.apply_url || row.source_url || null) : null,
+    tier: null,
+    practice_area: ext.practice_area || null,
+    eligibility: ext.eligibility || null,
+    stipend: ext.stipend || null,
+    description: ext.description || null,
+    task_brief: ext.task_brief || null,
+    source_credit: `Auto-aggregated from ${row.source_firm} careers page`,
+    posted_at: now,
+    expires_at: expires,
+    status: "active" as any,
+    created_by: "preview",
+    created_at: now,
+    updated_at: now,
+  };
 
   return (
     <Dialog open={!!row} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto border-2 border-foreground">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto border-2 border-foreground">
         <DialogHeader>
-          <DialogTitle className="font-heading">{ext.role || row.source_title || "(no role)"}</DialogTitle>
+          <DialogTitle className="font-heading">Live preview</DialogTitle>
           <DialogDescription>
-            {row.source_firm}
-            {" · "}
+            How this opportunity will appear on the public Opportunities board.{" "}
             <a href={row.source_url} target="_blank" rel="noreferrer noopener" className="text-accent underline break-all">
-              {row.source_url}
+              source ↗
             </a>
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <Field label="Type" value={ext.opportunity_type} />
-            <Field label="Location" value={ext.location} />
-            <Field label="Country" value={ext.country} />
-            <Field label="Deadline" value={ext.deadline} />
-            <Field label="Eligibility" value={ext.eligibility} />
-            <Field label="Stipend" value={ext.stipend} />
-            <Field label="Practice area" value={ext.practice_area} />
-            <Field label="Apply URL" value={ext.apply_url} />
-            <Field label="Apply email" value={ext.application_email} />
-            <Field label="Description" value={ext.description} />
-          </div>
-
-          <div>
-            <Label className="font-mono text-[10px] uppercase tracking-widest">Raw scraped markdown</Label>
-            <div className="mt-1 max-h-[60vh] overflow-y-auto border-2 border-border rounded p-3 text-xs whitespace-pre-wrap font-mono bg-muted/30">
-              {row.raw_text || "(empty)"}
-            </div>
-          </div>
+        <div className="bg-background p-2 md:p-4 rounded-lg border border-border/50">
+          <VacancyCard vacancy={previewVacancy} />
         </div>
+
+        <details className="mt-4">
+          <summary className="text-xs font-mono uppercase tracking-widest text-muted-foreground cursor-pointer">
+            Raw scraped markdown
+          </summary>
+          <div className="mt-2 max-h-[40vh] overflow-y-auto border-2 border-border rounded p-3 text-xs whitespace-pre-wrap font-mono bg-muted/30">
+            {row.raw_text || "(empty)"}
+          </div>
+        </details>
 
         <div className="flex justify-end gap-2 mt-4 flex-wrap">
           <Button variant="outline" onClick={onClose}>Close</Button>
