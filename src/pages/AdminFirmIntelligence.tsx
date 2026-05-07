@@ -81,7 +81,7 @@ const fmtDate = (iso: string | null) => {
 };
 
 export default function AdminFirmIntelligence() {
-  usePageMeta({ title: "Firm Intelligence — Admin | Locus" });
+  usePageMeta({ title: "Firm Intelligence — Admin | Locus", description: "Bulk refresh firm intelligence." });
   const { isAdmin, ready } = useAdminAccess();
   const [firms, setFirms] = useState<FirmRow[]>([]);
   const [loading, setLoading] = useState(true);
