@@ -181,14 +181,14 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Button
           size="sm"
           variant={tab === "queue" ? "default" : "outline"}
           onClick={() => setTab("queue")}
           className="font-bold border-2 border-foreground"
         >
-          Queue ({rows.length})
+          Queue ({indiaOnly ? `${filteredRows.length} / ${rows.length}` : rows.length})
         </Button>
         <Button
           size="sm"
@@ -198,6 +198,17 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
         >
           Sources ({sources.length})
         </Button>
+        {tab === "queue" && (
+          <Button
+            size="sm"
+            variant={indiaOnly ? "default" : "outline"}
+            onClick={() => setIndiaOnly((v) => !v)}
+            className="font-bold border-2 border-foreground"
+            title="Hide non-India postings (London, Singapore, Dubai, etc.)"
+          >
+            🇮🇳 India only {indiaOnly ? "ON" : "OFF"}
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={() => void load()} className="ml-auto">
           <RefreshCw size={14} className="mr-1" /> Refresh
         </Button>
