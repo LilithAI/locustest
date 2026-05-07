@@ -34,7 +34,7 @@ interface RecentAttempt {
 
 export default function TheBar() {
   const { userId, ready: authReady } = useAuthSession();
-  const location = useLocation();
+  
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
   const [recent, setRecent] = useState<RecentAttempt[]>([]);
