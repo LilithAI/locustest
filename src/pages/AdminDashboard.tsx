@@ -54,6 +54,7 @@ const TILES: Tile[] = [
   { to: "/admin/waitlist", title: "Waitlist", description: "Browse and filter signups by audience.", icon: Users, scope: "waitlist_admin" },
   { to: "/admin/beta", title: "Beta Testers", description: "Review tester feedback, screenshots, and CSV export.", icon: ClipboardCheck, scope: "admin", fullAdminOnly: true },
   { to: "/admin/vacancies", title: "Vacancies", description: "Curate the live vacancy board with AI extraction.", icon: Briefcase, scope: "opportunities_admin" },
+  { to: "/admin/firm-intelligence", title: "Firm Intelligence", description: "Refresh, edit, and enrich firm directory profiles (paste text or upload PDF).", icon: Building2, scope: "admin", fullAdminOnly: true },
   { to: "/admin/opportunities", title: "Opportunities", description: "Post CFPs, moots, and competitions with AI paste-extract.", icon: Briefcase, scope: "opportunities_admin" },
   { to: "/admin/bar", title: "The Bar", description: "Sources, challenges, stats, and AI generation log.", icon: Scale, scope: "bar_admin" },
   { to: "/admin/firm-suggestions", title: "Firm Suggestions", description: "Review user-submitted firm fixes and additions.", icon: MessageSquarePlus, scope: "waitlist_admin" },
