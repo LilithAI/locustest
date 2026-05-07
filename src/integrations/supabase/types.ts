@@ -1205,6 +1205,44 @@ export type Database = {
           },
         ]
       }
+      firm_edit_log: {
+        Row: {
+          admin_user_id: string
+          applied_fields: Json
+          created_at: string
+          firm_slug: string
+          id: string
+          source_excerpt: string | null
+          source_type: string
+        }
+        Insert: {
+          admin_user_id: string
+          applied_fields?: Json
+          created_at?: string
+          firm_slug: string
+          id?: string
+          source_excerpt?: string | null
+          source_type: string
+        }
+        Update: {
+          admin_user_id?: string
+          applied_fields?: Json
+          created_at?: string
+          firm_slug?: string
+          id?: string
+          source_excerpt?: string | null
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_edit_log_firm_slug_fkey"
+            columns: ["firm_slug"]
+            isOneToOne: false
+            referencedRelation: "firm_profiles"
+            referencedColumns: ["firm_slug"]
+          },
+        ]
+      }
       firm_news_mentions: {
         Row: {
           created_at: string

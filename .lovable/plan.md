@@ -1,91 +1,105 @@
 ## Goal
 
-Bulk-refresh intelligence for all 94 firm profiles, parallelized 3-at-a-time, with retry for weak results — driven from a new admin page.
+A new admin tool at `/admin/firm-intelligence/:slug/edit` that lets you:
+1. **Paste raw text** about a firm (brochure copy, partner email, ranking blurb, etc.), OR
+2. **Upload a PDF** (brochure, ranking report, profile doc),
+3. Click **"Extract & preview"** → AI parses it into structured fields,
+4. Review a **diff** (current vs. proposed values) and tick which to apply,
+5. Click **Save** → writes to `firm_profiles` + child tables (`firm_offices`, `firm_practice_areas`, `firm_team_members`, `firm_rankings`).
 
-## Current state
+This complements the existing scrape (`refresh-firm-intelligence`) — scrape pulls the website, this lets you patch in anything the website doesn't surface.
 
-- Edge function `refresh-firm-intelligence` works (Khaitan returned 4 offices + 21 practice areas).
-- All 94 firms have `last_scraped_at` set but `intelligence_completeness_score = 0` and 0 rankings/news — they were imported, not enriched.
-- Admin section exists at `/admin/*` under `AdminLayout`.
+## UX flow
 
-## Plan
-
-### Step 1 — New job-queue table
-
-Migration: create `firm_refresh_jobs` table to track each batch run (so refreshing 94 firms is observable, resumable, and visible across browser tabs):
+From the existing **Firm Intelligence** admin page, each row gets an **"Edit"** button → opens the new editor page.
 
 ```
-firm_refresh_jobs:
-  id uuid PK
-  status: queued | running | done | failed
-  total int, completed int, failed int
-  started_by uuid, started_at, finished_at
-  notes text
-
-firm_refresh_job_items:
-  id uuid PK
-  job_id uuid FK
-  firm_slug text
-  status: pending | running | done | failed | retry
-  attempt int default 0
-  completeness numeric  -- score after the run
-  error text
-  finished_at timestamptz
+┌─ Khaitan Legal Associates ────────────────────────────┐
+│  [ Paste text ▼ ]  [ Upload PDF ▼ ]                   │
+│  ┌─────────────────────────────────────────────┐      │
+│  │ (textarea OR pdf dropzone)                  │      │
+│  └─────────────────────────────────────────────┘      │
+│  [ Extract & preview ]                                │
+│                                                       │
+│  ── Proposed changes ─────────────────────────        │
+│  ☑ tagline:    "—" → "India's untiered firm"         │
+│  ☑ founded:    null → 2014                            │
+│  ☑ + 3 offices (Mumbai, Delhi, Bengaluru)             │
+│  ☐ practice_areas: replace 5 → 12                     │
+│  ☑ + 4 team members                                   │
+│                                                       │
+│  [ Cancel ]                            [ Apply ✓ ]    │
+└───────────────────────────────────────────────────────┘
 ```
 
-RLS: admin-only read/write.
+Manual override: every field in the diff is also editable inline before saving (so you can fix AI extraction mistakes).
 
-### Step 2 — New admin page `/admin/firm-intelligence`
+## Architecture
 
-New file `src/pages/AdminFirmIntelligence.tsx` + route in `src/App.tsx`. Page shows:
+```text
+Admin UI (src/pages/AdminFirmEdit.tsx)
+   │
+   │  1. POST PDF/text → edge fn
+   ▼
+extract-firm-intelligence (new edge fn)
+   - if PDF: pdf.js text extract
+   - call Lovable AI (google/gemini-2.5-pro) with structured-output schema
+   - returns FirmExtraction JSON (same shape as refresh-firm-intelligence)
+   │
+   ▼  2. Show diff in UI, user ticks fields
+   │
+   │  3. POST {slug, patch} → edge fn
+   ▼
+apply-firm-intelligence (new edge fn, admin-only)
+   - upsert firm_profiles columns
+   - replace child rows for ticked sections (offices/practice_areas/team/rankings)
+   - bump intelligence_completeness_score, last_scraped_at
+```
 
-- **Top stats**: 94 firms total · X enriched (completeness > 0.3) · Y stale (>30d old or completeness < 0.3) · Z never enriched.
-- **Big button**: "Refresh all stale firms" + secondary "Refresh ALL 94 (force)".
-- **Live progress panel** when a job is running: progress bar (completed/total), current firm being processed, count of failures, ETA.
-- **Per-firm table** below: slug · last refreshed · completeness % · offices/practices/rankings/news counts · individual "Refresh" button.
-- Polls `firm_refresh_jobs` every 3s while a job is `running`.
+## New edge functions
 
-### Step 3 — Orchestrator: client-driven parallelism
+1. **`extract-firm-intelligence`**
+   - Input: `{ firm_slug, source_type: 'text'|'pdf', text?, pdf_base64? }`
+   - PDF parsing: lightweight `pdf-parse` equivalent or pdf.js (text only, no images)
+   - Calls Lovable AI with the **same JSON schema** the scraper uses (reuse types from `refresh-firm-intelligence`)
+   - Returns extracted JSON — does **not** write to DB
+   - Admin-only (verify JWT + `is_admin`)
 
-The browser drives the batch (simplest, no new server infra):
+2. **`apply-firm-intelligence`**
+   - Input: `{ firm_slug, patch: Partial<FirmExtraction>, sections: { offices: bool, practice_areas: bool, team: bool, rankings: bool } }`
+   - Service-role writes; admin-only
+   - For ticked sections: `DELETE` existing rows for slug + `INSERT` new
+   - For scalar fields (tagline, founded_year, etc.): only update keys present in patch
 
-1. Click "Refresh all" → insert a `firm_refresh_jobs` row (status `running`, total=94) + 94 `firm_refresh_job_items`.
-2. Frontend pulls 3 pending items at a time, calls existing `refresh-firm-intelligence` edge function for each.
-3. On each completion: update the item row (status, completeness, error), increment `completed`/`failed` on the parent job, pull the next pending item.
-4. When pending list is empty, scan items where `completeness < 0.3 AND attempt < 2` → flip to `pending` for one retry pass.
-5. Mark job `done`.
+## New frontend
 
-If the user closes the tab, the job stays `running` in DB. Reopening the page detects an in-progress job and **resumes** by picking up the next `pending` item — so closing the tab pauses, reopening resumes.
+- **`src/pages/AdminFirmEdit.tsx`** — the editor page above
+- **`src/components/admin/FirmDiffView.tsx`** — renders the field-by-field diff with checkboxes + inline edit
+- Route: `/admin/firm-intelligence/:slug/edit` in `App.tsx`
+- Add **"Edit"** button per row in existing `AdminFirmIntelligence.tsx`
 
-A small abort button cancels the current job (sets status `failed`, stops the loop).
+## DB
 
-### Step 4 — Reuse existing button
+**No schema changes needed** — writes go to existing `firm_profiles` + child tables. RLS already restricts admin writes via service role in edge function.
 
-The single-firm `RefreshIntelligenceButton` on `FirmProfile` stays as-is. The admin page's per-row Refresh just calls the same edge function inline.
-
-### Step 5 — Sanity check after batch
-
-When the job finishes, the page surfaces a "Top 10 weakest profiles" list (lowest completeness) so you can manually inspect/fix.
-
-## Why this shape
-
-- **Client orchestration** = no need for a second edge function or pg_cron; you can watch it run live.
-- **Parallel x3** in JS = `Promise.all` on a 3-slot worker pool.
-- **DB-backed queue** = survives tab close, multi-tab safe via row-level claim (`UPDATE ... WHERE status='pending' RETURNING *` with a status check).
-- **Retry pass** triggered automatically for weak results (completeness < 0.3, max 2 attempts) per your choice.
-
-## Out of scope
-
-- No changes to `refresh-firm-intelligence` edge function logic itself.
-- No changes to the public `/directory/firms/:slug` page UI.
-- No automatic cron — refresh is admin-triggered. (We can add monthly cron later.)
+Optional small addition: `firm_edit_log` (firm_slug, admin_user_id, source_type, applied_fields jsonb, created_at) for audit trail. **Default: include this** — easy to add, useful for "who changed what".
 
 ## Files
 
-- **New migration**: `firm_refresh_jobs` + `firm_refresh_job_items` tables with admin RLS.
-- **New**: `src/pages/AdminFirmIntelligence.tsx` (page + orchestrator hook).
-- **New**: `src/components/admin/AdminFirmIntelRow.tsx` (per-firm row).
-- **Edit**: `src/App.tsx` (add admin route).
-- **Edit**: `src/components/admin/AdminLayout.tsx` or sidebar (add nav link to "Firm Intelligence").
+**New:**
+- `supabase/functions/extract-firm-intelligence/index.ts`
+- `supabase/functions/apply-firm-intelligence/index.ts`
+- `src/pages/AdminFirmEdit.tsx`
+- `src/components/admin/FirmDiffView.tsx`
+- 1 migration: `firm_edit_log` table
 
-That's it — one DB migration, two new files, two small edits.
+**Edited:**
+- `src/App.tsx` (lazy route)
+- `src/pages/AdminFirmIntelligence.tsx` (Edit button per row)
+
+## Out of scope
+
+- Bulk PDF upload (one firm at a time)
+- Image/logo extraction from PDF
+- Auto-apply without review (always diff-then-confirm)
+- Editing comparable firms / news mentions (keep those scraper-only for now)

@@ -117,6 +117,7 @@ const AdminOpportunities = lazy(() => import("./pages/AdminOpportunities"));
 const AdminAdmins = lazy(() => import("./pages/AdminAdmins"));
 const AdminInsights = lazy(() => import("./pages/AdminInsights"));
 const AdminFirmIntelligence = lazy(() => import("./pages/AdminFirmIntelligence"));
+const AdminFirmEdit = lazy(() => import("./pages/AdminFirmEdit"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -244,6 +245,7 @@ const App = () => (
                     <Route path="admins" element={<AdminAdmins />} />
                     <Route path="insights" element={<AdminInsights />} />
                     <Route path="firm-intelligence" element={<AdminFirmIntelligence />} />
+                    <Route path="firm-intelligence/:slug/edit" element={<AdminFirmEdit />} />
                   </Route>
                   <Route path="/vacancies" element={<Navigate to="/opportunities" replace />} />
                   <Route path="/opportunities" element={<Opportunities />} />
