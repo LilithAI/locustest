@@ -1,45 +1,41 @@
-## What's wrong
+# Solid fix plan for the routing/build breakage
 
-Two real bugs in the admin login, plus one piece of good news from the logs:
+## Goal
+Eliminate the recurring router-related build failures and the `/tools/cv-analyser` bad experience by finishing the migration away from the legacy `react-router-dom` compatibility layer where it matters most.
 
-1. **"Username not found"** — `get_email_by_username` looks up `profiles.display_name`, not `username`. So:
-   - `Jeet` (capital J) → matches `display_name = 'Jeet'` ✅
-   - `jeet` (lowercase) → also matches (case-insensitive) ✅
-   - `jeet@locus.legal` → no display_name equals that → "Username not found" ❌
-   - This also means there's a latent bug for any user whose `username` and `display_name` differ.
+## What I’ll change
 
-2. **"This account does not have admin access"** — the auth log confirms `jeet@locus.legal` (user `9c9bd0b2…`) signed in successfully at 13:27:43, and the DB confirms that user has the `admin` role. So the sign-in worked — the failure was the post-login role check running before `user_roles` finished loading (a race). The hook does reset `scopes` to `null` on user change, but the `justSignedIn` effect can fire on the same tick that `ready` is briefly true with the previous user's empty scopes.
+1. **Replace the shim-based imports with native TanStack Router imports**
+   - Start with the shared routing-heavy files that affect the whole app shell and error states:
+     - `src/components/*` files like nav, footer, layout, admin nav
+     - `src/hooks/useTrackPageViews.ts`
+     - `src/pages/NotFound.tsx`
+   - Then update page files that still import `react-router-dom`.
+   - Keep behavior the same while switching imports/hooks/components to TanStack Router equivalents.
 
-## Fix
+2. **Remove reliance on the `react-router-dom` alias for core app behavior**
+   - Keep the app working even if TS/Vite alias resolution is picky.
+   - This turns the current workaround into a proper migration instead of a brittle compatibility trick.
 
-### 1. Backend: make `get_email_by_username` actually use the username (and accept email too)
+3. **Fix the bad `/tools/cv-analyser` experience**
+   - Verify the generated route exists and the route file points correctly to the page component.
+   - If the preview still falls through to Not Found, trace the affected navigation/useNavigate calls in `CvAnalyser` and nearby layout routes and update them to TanStack-safe navigation patterns.
 
-Replace the function with one that:
-- If input contains `@`, look it up directly in `auth.users.email` (case-insensitive).
-- Otherwise, match `profiles.username` first, then fall back to `profiles.display_name` (case-insensitive) for backward compatibility.
+4. **Harden TypeScript config only where needed**
+   - Ensure the TypeScript config is aligned with the router setup.
+   - Remove any config dependence that only exists to prop up the shim, if it becomes unnecessary after the migration.
 
-This unblocks `jeet`, `Jeet`, and `jeet@locus.legal` — and fixes the same bug for `admin` and any future seeded user.
+5. **Validate the result against the actual failure modes**
+   - Confirm the legacy import errors are gone.
+   - Confirm `/tools/cv-analyser` resolves normally instead of showing Not Found.
+   - Check the main shell routes still render.
 
-### 2. Frontend: `src/pages/AdminLogin.tsx`
+## Technical notes
+- Root issue: the project is mid-migration to TanStack Router but still imports `react-router-dom` in many files, relying on a Vite alias to `src/lib/rrd.tsx`.
+- That alias is fragile in this TypeScript/project-reference setup, which is why the same class of failure can keep resurfacing.
+- The durable fix is to reduce or eliminate shim usage in the app code, especially in shared/layout/navigation files.
 
-- Relabel the field to **"Username or email"**.
-- After `signInWithPassword` succeeds, do an explicit one-shot check against `user_roles` for the returned `user.id` instead of waiting for `useAdminAccess` to settle. Only navigate (or sign out + show "no admin access") based on that direct query. This removes the race entirely.
-- Keep the `useAdminAccess` hook untouched — it's still used by `AdminLayout`.
-
-### 3. Memory update
-
-Update `mem://index.md` so the Core line says admin login accepts username **or email**.
-
-## Out of scope
-
-- No changes to `AdminLayout`, role-grant flow, or other admin pages.
-- No changes to public `/auth` (still Google-only).
-- No new tables or RLS changes.
-
-## Verification
-
-- Sign in as `jeet` → lands on `/admin`.
-- Sign in as `Jeet` → lands on `/admin`.
-- Sign in as `jeet@locus.legal` → lands on `/admin`.
-- Sign in as `admin` / `Admin2026!` → lands on `/admin`.
-- Sign in as a non-admin account → toast "This account does not have admin access." and signed out.
+## Expected outcome
+- No more repeated `Cannot find module 'react-router-dom'` failures.
+- A more stable router setup that matches the app’s actual stack.
+- `/tools/cv-analyser` loads through the proper route path instead of dropping users onto a broken Not Found state.
