@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import mdx from "@mdx-js/rollup";
 import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
@@ -46,6 +47,10 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     { enforce: "pre" as const, ...mdx({ jsxRuntime: "automatic", development: false, providerImportSource: "@mdx-js/react", remarkPlugins: [remarkGfm], rehypePlugins: [rehypeSlug] }) } as Plugin,
+    tanstackStart({
+      spa: { enabled: true },
+      router: { routesDirectory: "src/routes", generatedRouteTree: "src/routeTree.gen.ts" },
+    }),
     react(),
     mode === "development" && componentTagger(),
     writeVersionJsonPlugin(),
