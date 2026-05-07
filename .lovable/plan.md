@@ -1,111 +1,131 @@
-# Firm Intelligence — Real Data Plan (after subtraction)
+# Build the Firm Intelligence Pipeline
 
-I went section-by-section through the demo UI and asked: *can we actually fill this from Firecrawl + Gemini, from existing DB tables, or not at all?* Below is the honest cut.
-
----
-
-## ✅ Sections we KEEP (data is gettable or already exists)
-
-| # | Section | Source | Confidence |
-|---|---|---|---|
-| 1 | **Hero** — name, tier, tagline, founded year | `firm_profiles` + Firecrawl scrape of homepage/about | High |
-| 2 | **Locus Take** | Already in `firm_profiles.locus_take` (manual) | High — exists today |
-| 3 | **Intelligence Completeness bar** | Computed server-side from filled fields % | High |
-| 4 | **At a glance** — Lawyers, Partners, Offices, Open Roles | Firecrawl scrape of `/people`, `/team` + count from `vacancies` table | Medium-High |
-| 5 | **Signature practices** (top 5 with depth bar) | Firecrawl scrape of `/practices` page → `firm_practice_areas`. Depth bar = `partner_count / max(partner_count)` | Medium |
-| 6 | **All practice areas** (chip cloud) | Same scrape, full list | High |
-| 7 | **Office presence** with city + address | Firecrawl scrape of `/contact` / `/offices` → `firm_offices` | High |
-| 8 | **Rankings & recognition** (Chambers / Legal500 / IFLR) | Firecrawl search `"<firm> Chambers Asia-Pacific"` → scrape result → extract band | Medium |
-| 9 | **Recent activity / news** (last 90 days) | Firecrawl search `"<firm>" site:barandbench.com OR site:livelaw.in` `tbs:'qdr:m'` | High |
-| 10 | **Current openings** | Existing `vacancies` table, joined by `firm_name` (case-insensitive) — **already in your DB** | High — exists today |
-| 11 | **Ask about this firm** | Already built (`ask-about-firm` edge function) | High — exists today |
-| 12 | **Contact** — website, emails, phone, HQ | Firecrawl scrape of homepage + `/contact` → `firm_profiles` | High |
-| 13 | **Footer** — last refreshed timestamp | `firm_profiles.last_scraped_at` | High |
+I read your CSV and compared it to the DB. Here's the honest state and the plan.
 
 ---
 
-## ❌ Sections we CUT from the demo UI
+## What your CSV gives us (95 firms)
 
-| Section | Why cut |
+| Field | Coverage |
 |---|---|
-| **P : A ratio stat tile** | Derived from lawyers + partners. If both extract well we keep it; if either is missing the whole tile would be junk. **Verdict: keep IF both numbers extracted, else hide.** |
-| **Hiring velocity %** | Needs historical headcount tracking (we'd need to scrape weekly for 3+ months). Not building that. **Verdict: cut permanently** — also already cut from current demo. |
-| **Office % share bars** | Needs lawyer headcount per office, which firm websites almost never publish. **Verdict: cut the % bar, keep the city + address only.** |
-| **Per-practice depth bars** | Real "depth" needs practice-level revenue/deal data we can't get. Computed `partner_count / max` is a reasonable proxy. **Verdict: keep but rename to "partner strength" so we're honest.** |
-| **Team movements feed (joins/exits last 90d)** | We have a `firm_team_movements` table, but reliable detection needs longitudinal team scraping. From a single news search we'd get noisy/incomplete results. **Verdict: cut for now, revisit in Phase 4 once we have repeated team snapshots.** |
-| **Similar firms** (3 cards) | Needs a similarity model. We could fake it with "same tier" but that's not intelligence, that's a filter. **Verdict: cut for now — easy to add later from `firm_comparable_index` table.** |
-| **"Generate cold email" button** | Not part of this scrape pipeline; a separate AI feature. **Verdict: cut from this turn, can add as a separate ticket.** |
+| website_url | 95/95 ✅ |
+| practice_areas (semicolon list) | 69/95 |
+| offices (semicolon list) + addresses | 63/95 |
+| careers_url | 51/95 |
+| general_email | 47/95 |
+| founded_year | partial |
+| **total_lawyers / partner_count** | basically 0 (numbers in CSV are misparsed JSON counts, not real headcount) |
+| **rankings, news, locus_take, signature practices** | not in CSV at all |
+
+## What the DB has (94 firm_profiles rows)
+
+- All 94 have website_url + last_scraped_at + locus_take ✅
+- 0 firms have practice_areas, offices, rankings, or news populated in the relational side-tables (the CSV-style data sits as text columns on `firm_profiles` only)
+- 0 firms have real total_lawyers / partner_count
+
+## The gap
+
+The CSV-style scrape (basic firm-page extraction) already happened. To power the demo UI honestly we need a **second pass** that goes deeper: real lawyer/partner counts, practice areas with partner counts, structured offices, rankings, recent news. That's what Firecrawl + Gemini does.
 
 ---
 
-## 🔁 Final UI sections after subtraction
+## Plan — 3 steps in this loop
+
+### Step 1 — One-time CSV backfill (no AI, no scraping)
+
+Import the better fields from your CSV into `firm_profiles` for the 95 firms (NULL-safe — won't overwrite existing values):
+- `practice_areas` text array (split on `;`)
+- `offices` text array + `office_addresses` JSONB
+- `office_count`, `hq_city`, `general_email`, `careers_email`, `phone_main`
+- `linkedin_url`, `twitter_url`, `careers_url`, `tagline`, `description`, `founded_year`
+
+Skip the broken `total_lawyers` / `partner_count` fields — those will come from the AI pass.
+
+This makes the directory and demo page meaningful for non-piloted firms immediately.
+
+### Step 2 — Firecrawl + Gemini refresh pipeline
+
+**New edge function** `refresh-firm-intelligence`:
 
 ```text
-1. Hero  (name, tier, tagline, est. year, Visit website button)
-2. Locus Take
-3. Intelligence Completeness bar
-4. At a glance  (Lawyers, Partners, [P:A if both known], Offices, Open Roles)
-5. Signature Practices  (top 5 by partner count, with "partner strength" bar)
-6. All Practice Areas  (chip cloud)
-7. Office Presence  (city + address only, no % bars)
-8. Rankings & Recognition  (Chambers / Legal500 / IFLR cards)
-9. Current Openings  → links to existing /opportunities filtered by firm
-10. Recent Activity / News  (last 90 days from Bar & Bench, LiveLaw, ET)
-11. Ask About This Firm  (already built)
-12. Contact  (website, general email, careers email, phone, HQ)
-13. Footer  ("Last refreshed X · Request update" mailto)
+INPUT: { firm_slug }
+
+1. Load firm_profiles row → website_url, firm_name
+2. Firecrawl map(website_url) → pick 4 best URLs matching
+   /people|team|attorneys|practice|service|office|contact|about/i
+3. Firecrawl scrape(homepage + 4 sub-pages) → markdown (~30-50K tokens)
+4. Firecrawl search("<firm name>" site:barandbench.com OR site:livelaw.in
+   OR site:economictimes.com, tbs:'qdr:m', limit:10) → news
+5. Gemini google/gemini-3-flash-preview with structured tool-call schema:
+   {
+     tagline, founded_year, total_lawyers, partner_count,
+     general_email, careers_email, phone_main, hq_city,
+     offices: [{ city, address, is_hq }],
+     practice_areas: [{ name, partner_count, is_signature }],
+     rankings: [{ source, year, band_or_tier, practice_area }],
+     news: [{ title, url, source, published_at, mention_type, excerpt }]
+   }
+6. Write to DB with admin client (RLS-bypass):
+   - firm_profiles: NULL-safe overwrite of profile fields
+   - firm_offices: full replace by firm_slug
+   - firm_practice_areas: full replace by firm_slug
+   - firm_rankings: upsert on (firm_slug, source, year, practice_area)
+   - firm_news_mentions: upsert on url
+   - firm_profiles.last_scraped_at = now()
+   - recompute intelligence_completeness_score
 ```
 
-Every section conditionally renders — if data is missing, the section disappears (not "Unknown").
+**Admin trigger** — `src/components/firm/RefreshIntelligenceButton.tsx`:
+- Floating button bottom-right of `/directory/firms/:slug`
+- Visible only when `useIsAdmin()` returns true
+- Toast progress, refetches firm queries on success
+
+### Step 3 — Pilot on 3 firms, then promote demo to real
+
+After Step 2 ships:
+1. Open `/directory/firms/khaitan-co` as admin → click Refresh → wait ~20s → inspect DB writes
+2. Repeat for `cyril-amarchand-mangaldas` and `azb-partners`
+3. Iterate Gemini prompt if extraction is weak
+4. **Next loop (Phase 2):** swap `DemoFirmIntelligence.tsx`'s mock `firm` constant for real DB loaders, then promote it to `/directory/firms/:slug`. Conditional rendering means non-piloted firms degrade gracefully (sections hide if data missing).
+
+### Step 4 (later, separate loop) — Bulk backfill all 94
+
+One-off sandbox script loops over every enriched firm with 1-second delay. ~5 Firecrawl credits each × 94 = ~470 credits.
 
 ---
 
-## 🔗 How "Current Openings" links to existing pipeline
+## Secrets needed
 
-The `vacancies` table joins on `firm_name` text (case-insensitive). On the firm profile we'll show up to 3 active vacancies as cards; each card links to `/opportunities` (or directly to the apply URL/email). A "See all openings" footer link goes to `/opportunities?firm=<name>` (we'll add the filter param).
-
-So we're **not duplicating** the opportunities feature — we're surfacing a slice of it inside the firm page.
-
----
-
-## 🛠️ Build plan (this turn → next turns)
-
-### Step A — Update demo UI to match the subtracted list
-Edit `src/pages/DemoFirmIntelligence.tsx`:
-- Remove: P:A tile (will conditionally show after Phase B), office % bars, Movements section, Similar Firms section, Generate cold email button
-- Add: Locus Take section (between Hero and Completeness)
-- Rename "depth" → "Partner strength"
-- Wire Current Openings to look like real vacancy cards with "See all →" link
-
-### Step B — Build Firecrawl + Gemini pipeline (Phase 1)
-- `supabase/functions/refresh-firm-intelligence/index.ts` — orchestrator
-- Steps: load firm → Firecrawl `map` website → `scrape` top 4 pages → `search` legal news (last month) → Gemini `google/gemini-3-flash-preview` with one tool-call schema → write to `firm_profiles` (NULL-safe), `firm_offices`, `firm_practice_areas`, `firm_rankings`, `firm_news_mentions` → bump `last_scraped_at` + `intelligence_completeness_score`
-- `src/components/firm/RefreshIntelligenceButton.tsx` — admin-only floating button on `/directory/firms/:slug`
-- Pilot on Khaitan, Cyril Amarchand, AZB
-
-### Step C — Promote demo UI to real `/directory/firms/:slug` (Phase 2, next loop)
-Take the now-final demo components, swap the mock `firm` constant for real loaders that read from the populated tables. Conditional rendering means non-piloted firms degrade gracefully.
-
-### Step D — Bulk backfill (Phase 3, one-off)
-Sandbox loop over enriched firms, ~5 Firecrawl credits each.
-
----
-
-## 🔐 Secrets
-
-Need only one new secret: **`FIRECRAWL_API_KEY`** (`fc-1f3fccf38b9048b3bd4bf6f3d2868822`).
+Just one: **`FIRECRAWL_API_KEY`** (you have `fc-1f3fccf38b9048b3bd4bf6f3d2868822`).
 - `LOVABLE_API_KEY` — already configured ✅
-- Service role for DB writes — already in edge function env ✅
+- DB service role — already in edge function env ✅
+
+I'll request it via the secret tool when you approve.
 
 ---
 
-## What I'm NOT doing
+## Files this plan creates / edits
 
-- Schema migrations (every needed table already exists, perfectly shaped)
-- Auth changes
-- Touching `/directory` listing or `FirmDrawer`
-- Building per-user OAuth or new connectors
+**New:**
+- `supabase/functions/refresh-firm-intelligence/index.ts` — orchestrator
+- `supabase/functions/refresh-firm-intelligence/extractor.ts` — Gemini schema + prompt
+- `src/components/firm/RefreshIntelligenceButton.tsx`
+- One-off script in this loop's sandbox to import the CSV (no project file)
+
+**Edited:**
+- `src/pages/FirmProfile.tsx` — mount the floating refresh button (admin-only)
+
+**Untouched:**
+- `/demofirminteligence` (still mock, finalised look)
+- `/directory` listing
+- DB schema (zero migrations)
+- Auth, nav, every other route
 
 ---
 
-## Approve = I do Step A first (UI subtraction) so you can re-judge the demo, then ask for the Firecrawl key and do Step B in the same loop.
+## Approve = I run
+
+1. `supabase--insert` to backfill CSV → `firm_profiles` (NULL-safe)
+2. `secrets--add_secret` for `FIRECRAWL_API_KEY`
+3. Build the edge function + admin button
+4. Tell you to test on Khaitan, then iterate
