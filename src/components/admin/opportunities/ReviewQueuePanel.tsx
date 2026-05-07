@@ -480,6 +480,32 @@ function ReviewDialog({
   onApprove: (row: QueueRow, fields: any) => void;
 }) {
   const [fields, setFields] = useState<any>({});
+  const [generating, setGenerating] = useState(false);
+
+  const generateDescription = async () => {
+    if (!row) return;
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-vacancy-description", {
+        body: {
+          ai_extracted: row.ai_extracted ?? {},
+          raw_text: row.raw_text ?? "",
+          firm_name: fields.firm_name || row.source_firm,
+          role: fields.role || row.source_title,
+        },
+      });
+      if (error) throw error;
+      const d = data as { description?: string; error?: string };
+      if (d.error || !d.description) throw new Error(d.error || "No description returned");
+      setFields((f: any) => ({ ...f, description: d.description }));
+      toast.success("Description generated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Generation failed");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
 
   useEffect(() => {
     if (row) {
@@ -591,8 +617,21 @@ function ReviewDialog({
               <Input value={fields.practice_area ?? ""} onChange={(e) => u("practice_area", e.target.value)} />
             </div>
             <div>
-              <Label>Description</Label>
-              <Textarea rows={3} value={fields.description ?? ""} onChange={(e) => u("description", e.target.value)} />
+              <div className="flex items-center justify-between mb-1">
+                <Label>Description</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={generating}
+                  onClick={generateDescription}
+                  className="h-7 text-xs"
+                >
+                  {generating ? <Loader2 size={12} className="animate-spin mr-1" /> : "✨ "}
+                  {generating ? "Generating…" : "Generate (~1000 words)"}
+                </Button>
+              </div>
+              <Textarea rows={14} value={fields.description ?? ""} onChange={(e) => u("description", e.target.value)} />
             </div>
           </div>
 
