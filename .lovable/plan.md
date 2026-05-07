@@ -1,28 +1,23 @@
-## Problem
+## Goal
 
-In the screenshot, the Lawctopus-imported vacancies show only **Apply on portal** — no **Draft application** button. That's because the current condition in `VacancyCard.tsx` is:
+Temporarily make `/admin/*` viewable in the preview without logging in, so editing the admin panel doesn't force re-login each time. Re-enable proper admin auth later when the user explicitly asks.
 
-```ts
-onApply && (vacancy.application_email || !vacancy.application_url)
-```
+## Change
 
-These vacancies have an `application_url` (the Lawctopus fallback) but no `application_email`, so the Draft button is hidden. This contradicts the original intent ("both buttons should be here").
+### `src/components/admin/AdminLayout.tsx`
+- Bypass the `useAdminAccess` gate. Render `<AdminSubNav />` + `<Outlet />` immediately, without checking `ready` / `hasAnyScope`.
+- Add a clearly visible `TEMP: admin auth bypassed for preview` warning banner at the top of the layout so it's obvious this is not production-ready.
+- Leave the `useAdminAccess` import/hook removed (or commented) — keep the file otherwise intact so re-enabling is a one-line revert.
 
-## Fix
+No other files change. RLS still protects the database, so unauthenticated visitors hitting admin pages will see empty data / API errors, not real admin powers.
 
-### `src/components/vacancies/VacancyCard.tsx` (idle-state footer)
+## Memory
 
-- Change the Draft application render condition to simply `onApply` — show it whenever an `onApply` handler is provided, regardless of whether `application_email` is set or not.
-- Keep Apply on portal rendering unchanged (only when `vacancy.application_url` exists).
-- Result: when both an email and a portal URL exist → both buttons. When only portal → both buttons (Draft will let user compose a generic email / use the existing draft flow). When only email → only Draft.
+Save a project memory rule (`mem://constraints/admin-auth-bypass`) and add it to the Core index:
 
-### Variant choice
+> **Admin auth is temporarily bypassed in `AdminLayout.tsx` for preview convenience.** Do NOT re-enable the `useAdminAccess` gate unless the user explicitly says "re-enable admin login" / "lock admin" / similar. When they do, restore the original `ready` / `hasAnyScope` check and remove the temp banner.
 
-- If `application_url` exists → Draft application uses `variant="outline"`, Apply on portal is the primary filled button (current behavior).
-- If no `application_url` → Draft application uses `variant="default"` (current behavior).
-
-### Out of scope
-
-- No DB / schema changes.
-- No changes to draft-email dialog logic — it already handles vacancies without an email by prompting for one or using a fallback.
-- No changes to Applied / Follow-up / Closed states.
+## Out of scope
+- No DB / RLS changes.
+- No changes to other auth flows or routes.
+- No removal of `useAdminAccess` hook itself — only its use in `AdminLayout`.
