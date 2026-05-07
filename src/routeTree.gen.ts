@@ -32,6 +32,10 @@ import { Route as LayoutDirectoryRouteImport } from './routes/_layout.directory'
 import { Route as LayoutApplicationsRouteImport } from './routes/_layout.applications'
 import { Route as LayoutAppRouteImport } from './routes/_layout.app'
 import { Route as LayoutAdminRouteImport } from './routes/_layout.admin'
+import { Route as LayoutToolsIndexRouteImport } from './routes/_layout.tools.index'
+import { Route as LayoutTheBarIndexRouteImport } from './routes/_layout.the-bar.index'
+import { Route as LayoutPlaybookIndexRouteImport } from './routes/_layout.playbook.index'
+import { Route as LayoutDirectoryIndexRouteImport } from './routes/_layout.directory.index'
 import { Route as LayoutAdminIndexRouteImport } from './routes/_layout.admin.index'
 import { Route as LayoutUUsernameRouteImport } from './routes/_layout.u.$username'
 import { Route as LayoutToolsCvAnalyserRouteImport } from './routes/_layout.tools.cv-analyser'
@@ -167,6 +171,26 @@ const LayoutAdminRoute = LayoutAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutToolsIndexRoute = LayoutToolsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutToolsRoute,
+} as any)
+const LayoutTheBarIndexRoute = LayoutTheBarIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutTheBarRoute,
+} as any)
+const LayoutPlaybookIndexRoute = LayoutPlaybookIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutPlaybookRoute,
+} as any)
+const LayoutDirectoryIndexRoute = LayoutDirectoryIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutDirectoryRoute,
 } as any)
 const LayoutAdminIndexRoute = LayoutAdminIndexRouteImport.update({
   id: '/',
@@ -312,6 +336,10 @@ export interface FileRoutesByFullPath {
   '/tools/cv-analyser': typeof LayoutToolsCvAnalyserRoute
   '/u/$username': typeof LayoutUUsernameRoute
   '/admin/': typeof LayoutAdminIndexRoute
+  '/directory/': typeof LayoutDirectoryIndexRoute
+  '/playbook/': typeof LayoutPlaybookIndexRoute
+  '/the-bar/': typeof LayoutTheBarIndexRoute
+  '/tools/': typeof LayoutToolsIndexRoute
   '/directory/firm/$slug': typeof LayoutDirectoryFirmSlugRoute
   '/the-bar/challenge/$id': typeof LayoutTheBarChallengeIdRoute
 }
@@ -322,14 +350,10 @@ export interface FileRoutesByTo {
   '/unsubscribe': typeof UnsubscribeRoute
   '/app': typeof LayoutAppRoute
   '/applications': typeof LayoutApplicationsRoute
-  '/directory': typeof LayoutDirectoryRouteWithChildren
   '/dock-lab': typeof LayoutDockLabRoute
   '/opportunities': typeof LayoutOpportunitiesRoute
   '/opportunities-preview': typeof LayoutOpportunitiesPreviewRoute
-  '/playbook': typeof LayoutPlaybookRouteWithChildren
   '/resources': typeof LayoutResourcesRoute
-  '/the-bar': typeof LayoutTheBarRouteWithChildren
-  '/tools': typeof LayoutToolsRouteWithChildren
   '/tour-lab': typeof LayoutTourLabRoute
   '/vacancies': typeof LayoutVacanciesRoute
   '/waitlist': typeof LayoutWaitlistRoute
@@ -355,6 +379,10 @@ export interface FileRoutesByTo {
   '/tools/cv-analyser': typeof LayoutToolsCvAnalyserRoute
   '/u/$username': typeof LayoutUUsernameRoute
   '/admin': typeof LayoutAdminIndexRoute
+  '/directory': typeof LayoutDirectoryIndexRoute
+  '/playbook': typeof LayoutPlaybookIndexRoute
+  '/the-bar': typeof LayoutTheBarIndexRoute
+  '/tools': typeof LayoutToolsIndexRoute
   '/directory/firm/$slug': typeof LayoutDirectoryFirmSlugRoute
   '/the-bar/challenge/$id': typeof LayoutTheBarChallengeIdRoute
 }
@@ -401,6 +429,10 @@ export interface FileRoutesById {
   '/_layout/tools/cv-analyser': typeof LayoutToolsCvAnalyserRoute
   '/_layout/u/$username': typeof LayoutUUsernameRoute
   '/_layout/admin/': typeof LayoutAdminIndexRoute
+  '/_layout/directory/': typeof LayoutDirectoryIndexRoute
+  '/_layout/playbook/': typeof LayoutPlaybookIndexRoute
+  '/_layout/the-bar/': typeof LayoutTheBarIndexRoute
+  '/_layout/tools/': typeof LayoutToolsIndexRoute
   '/_layout/directory/firm/$slug': typeof LayoutDirectoryFirmSlugRoute
   '/_layout/the-bar/challenge/$id': typeof LayoutTheBarChallengeIdRoute
 }
@@ -447,6 +479,10 @@ export interface FileRouteTypes {
     | '/tools/cv-analyser'
     | '/u/$username'
     | '/admin/'
+    | '/directory/'
+    | '/playbook/'
+    | '/the-bar/'
+    | '/tools/'
     | '/directory/firm/$slug'
     | '/the-bar/challenge/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -457,14 +493,10 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/app'
     | '/applications'
-    | '/directory'
     | '/dock-lab'
     | '/opportunities'
     | '/opportunities-preview'
-    | '/playbook'
     | '/resources'
-    | '/the-bar'
-    | '/tools'
     | '/tour-lab'
     | '/vacancies'
     | '/waitlist'
@@ -490,6 +522,10 @@ export interface FileRouteTypes {
     | '/tools/cv-analyser'
     | '/u/$username'
     | '/admin'
+    | '/directory'
+    | '/playbook'
+    | '/the-bar'
+    | '/tools'
     | '/directory/firm/$slug'
     | '/the-bar/challenge/$id'
   id:
@@ -535,6 +571,10 @@ export interface FileRouteTypes {
     | '/_layout/tools/cv-analyser'
     | '/_layout/u/$username'
     | '/_layout/admin/'
+    | '/_layout/directory/'
+    | '/_layout/playbook/'
+    | '/_layout/the-bar/'
+    | '/_layout/tools/'
     | '/_layout/directory/firm/$slug'
     | '/_layout/the-bar/challenge/$id'
   fileRoutesById: FileRoutesById
@@ -713,6 +753,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAdminRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/tools/': {
+      id: '/_layout/tools/'
+      path: '/'
+      fullPath: '/tools/'
+      preLoaderRoute: typeof LayoutToolsIndexRouteImport
+      parentRoute: typeof LayoutToolsRoute
+    }
+    '/_layout/the-bar/': {
+      id: '/_layout/the-bar/'
+      path: '/'
+      fullPath: '/the-bar/'
+      preLoaderRoute: typeof LayoutTheBarIndexRouteImport
+      parentRoute: typeof LayoutTheBarRoute
+    }
+    '/_layout/playbook/': {
+      id: '/_layout/playbook/'
+      path: '/'
+      fullPath: '/playbook/'
+      preLoaderRoute: typeof LayoutPlaybookIndexRouteImport
+      parentRoute: typeof LayoutPlaybookRoute
+    }
+    '/_layout/directory/': {
+      id: '/_layout/directory/'
+      path: '/'
+      fullPath: '/directory/'
+      preLoaderRoute: typeof LayoutDirectoryIndexRouteImport
+      parentRoute: typeof LayoutDirectoryRoute
+    }
     '/_layout/admin/': {
       id: '/_layout/admin/'
       path: '/'
@@ -887,10 +955,12 @@ const LayoutAdminRouteWithChildren = LayoutAdminRoute._addFileChildren(
 )
 
 interface LayoutDirectoryRouteChildren {
+  LayoutDirectoryIndexRoute: typeof LayoutDirectoryIndexRoute
   LayoutDirectoryFirmSlugRoute: typeof LayoutDirectoryFirmSlugRoute
 }
 
 const LayoutDirectoryRouteChildren: LayoutDirectoryRouteChildren = {
+  LayoutDirectoryIndexRoute: LayoutDirectoryIndexRoute,
   LayoutDirectoryFirmSlugRoute: LayoutDirectoryFirmSlugRoute,
 }
 
@@ -900,10 +970,12 @@ const LayoutDirectoryRouteWithChildren = LayoutDirectoryRoute._addFileChildren(
 
 interface LayoutPlaybookRouteChildren {
   LayoutPlaybookSlugRoute: typeof LayoutPlaybookSlugRoute
+  LayoutPlaybookIndexRoute: typeof LayoutPlaybookIndexRoute
 }
 
 const LayoutPlaybookRouteChildren: LayoutPlaybookRouteChildren = {
   LayoutPlaybookSlugRoute: LayoutPlaybookSlugRoute,
+  LayoutPlaybookIndexRoute: LayoutPlaybookIndexRoute,
 }
 
 const LayoutPlaybookRouteWithChildren = LayoutPlaybookRoute._addFileChildren(
@@ -915,6 +987,7 @@ interface LayoutTheBarRouteChildren {
   LayoutTheBarHistoryRoute: typeof LayoutTheBarHistoryRoute
   LayoutTheBarLeaderboardRoute: typeof LayoutTheBarLeaderboardRoute
   LayoutTheBarPreviewRoute: typeof LayoutTheBarPreviewRoute
+  LayoutTheBarIndexRoute: typeof LayoutTheBarIndexRoute
   LayoutTheBarChallengeIdRoute: typeof LayoutTheBarChallengeIdRoute
 }
 
@@ -923,6 +996,7 @@ const LayoutTheBarRouteChildren: LayoutTheBarRouteChildren = {
   LayoutTheBarHistoryRoute: LayoutTheBarHistoryRoute,
   LayoutTheBarLeaderboardRoute: LayoutTheBarLeaderboardRoute,
   LayoutTheBarPreviewRoute: LayoutTheBarPreviewRoute,
+  LayoutTheBarIndexRoute: LayoutTheBarIndexRoute,
   LayoutTheBarChallengeIdRoute: LayoutTheBarChallengeIdRoute,
 }
 
@@ -932,10 +1006,12 @@ const LayoutTheBarRouteWithChildren = LayoutTheBarRoute._addFileChildren(
 
 interface LayoutToolsRouteChildren {
   LayoutToolsCvAnalyserRoute: typeof LayoutToolsCvAnalyserRoute
+  LayoutToolsIndexRoute: typeof LayoutToolsIndexRoute
 }
 
 const LayoutToolsRouteChildren: LayoutToolsRouteChildren = {
   LayoutToolsCvAnalyserRoute: LayoutToolsCvAnalyserRoute,
+  LayoutToolsIndexRoute: LayoutToolsIndexRoute,
 }
 
 const LayoutToolsRouteWithChildren = LayoutToolsRoute._addFileChildren(
