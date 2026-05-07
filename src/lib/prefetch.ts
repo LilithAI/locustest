@@ -85,8 +85,13 @@ export function prefetchRoute(path: string) {
   const key = match[1];
   if (fired.has(key)) return;
   fired.add(key);
-  // Fire and forget. Errors are silent — the real navigation will surface them.
-  routeImports[key]().catch(() => fired.delete(key));
+  // Fire and forget. If the chunk 404s (stale post-deploy build), trigger
+  // the global recovery path so the user is moved to the fresh build before
+  // they actually click through and hit a blank screen.
+  routeImports[key]().catch((err) => {
+    fired.delete(key);
+    void import("./chunkRecovery").then((m) => m.tryRecoverFromChunkError(err));
+  });
 }
 
 // Routes most users hit shortly after landing. Warm them during idle time.
