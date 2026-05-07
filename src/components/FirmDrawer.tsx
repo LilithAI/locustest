@@ -123,6 +123,7 @@ export default function FirmDrawer({ firm, type, open, onOpenChange }: FirmDrawe
                 <Star size={12} /> {firm.rating}
               </span>
             )}
+            {hasIntelligence && <FirmIntelligenceBadge size="md" />}
           </div>
 
           {/* Verification */}
