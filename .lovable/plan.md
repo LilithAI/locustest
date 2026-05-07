@@ -1,97 +1,111 @@
-# Firm Intelligence — Demo-First Plan
+# Firm Intelligence — Real Data Plan (after subtraction)
 
-Goal: Build a tweakable demo page at `/demofirminteligence` first using mock data, lock the UI with you, then wire Firecrawl + Gemini extraction, then bulk backfill. Hybrid visual direction: brutalist hero + completeness bar, calmer Locus body sections. All 13 sections visible day one (with mock data) so you can judge them.
+I went section-by-section through the demo UI and asked: *can we actually fill this from Firecrawl + Gemini, from existing DB tables, or not at all?* Below is the honest cut.
 
 ---
 
-## Phase 0 — Demo page (this turn, after approval)
+## ✅ Sections we KEEP (data is gettable or already exists)
 
-Single new route, fully isolated, zero backend calls. Pure UI you can iterate on.
+| # | Section | Source | Confidence |
+|---|---|---|---|
+| 1 | **Hero** — name, tier, tagline, founded year | `firm_profiles` + Firecrawl scrape of homepage/about | High |
+| 2 | **Locus Take** | Already in `firm_profiles.locus_take` (manual) | High — exists today |
+| 3 | **Intelligence Completeness bar** | Computed server-side from filled fields % | High |
+| 4 | **At a glance** — Lawyers, Partners, Offices, Open Roles | Firecrawl scrape of `/people`, `/team` + count from `vacancies` table | Medium-High |
+| 5 | **Signature practices** (top 5 with depth bar) | Firecrawl scrape of `/practices` page → `firm_practice_areas`. Depth bar = `partner_count / max(partner_count)` | Medium |
+| 6 | **All practice areas** (chip cloud) | Same scrape, full list | High |
+| 7 | **Office presence** with city + address | Firecrawl scrape of `/contact` / `/offices` → `firm_offices` | High |
+| 8 | **Rankings & recognition** (Chambers / Legal500 / IFLR) | Firecrawl search `"<firm> Chambers Asia-Pacific"` → scrape result → extract band | Medium |
+| 9 | **Recent activity / news** (last 90 days) | Firecrawl search `"<firm>" site:barandbench.com OR site:livelaw.in` `tbs:'qdr:m'` | High |
+| 10 | **Current openings** | Existing `vacancies` table, joined by `firm_name` (case-insensitive) — **already in your DB** | High — exists today |
+| 11 | **Ask about this firm** | Already built (`ask-about-firm` edge function) | High — exists today |
+| 12 | **Contact** — website, emails, phone, HQ | Firecrawl scrape of homepage + `/contact` → `firm_profiles` | High |
+| 13 | **Footer** — last refreshed timestamp | `firm_profiles.last_scraped_at` | High |
 
-**Route:** `src/routes/demofirminteligence.tsx` → `/demofirminteligence`
+---
 
-**Mock firm:** "Khaitan & Co" with realistic dummy data hardcoded in `src/lib/demoFirmIntel.ts` (lawyers, partners, offices with %, practices with depth, rankings, news, movements, openings, similar firms). Easy to tweak in one file.
+## ❌ Sections we CUT from the demo UI
 
-**Component tree (all new, scoped under `src/components/firm/intel/`):**
+| Section | Why cut |
+|---|---|
+| **P : A ratio stat tile** | Derived from lawyers + partners. If both extract well we keep it; if either is missing the whole tile would be junk. **Verdict: keep IF both numbers extracted, else hide.** |
+| **Hiring velocity %** | Needs historical headcount tracking (we'd need to scrape weekly for 3+ months). Not building that. **Verdict: cut permanently** — also already cut from current demo. |
+| **Office % share bars** | Needs lawyer headcount per office, which firm websites almost never publish. **Verdict: cut the % bar, keep the city + address only.** |
+| **Per-practice depth bars** | Real "depth" needs practice-level revenue/deal data we can't get. Computed `partner_count / max` is a reasonable proxy. **Verdict: keep but rename to "partner strength" so we're honest.** |
+| **Team movements feed (joins/exits last 90d)** | We have a `firm_team_movements` table, but reliable detection needs longitudinal team scraping. From a single news search we'd get noisy/incomplete results. **Verdict: cut for now, revisit in Phase 4 once we have repeated team snapshots.** |
+| **Similar firms** (3 cards) | Needs a similarity model. We could fake it with "same tier" but that's not intelligence, that's a filter. **Verdict: cut for now — easy to add later from `firm_comparable_index` table.** |
+| **"Generate cold email" button** | Not part of this scrape pipeline; a separate AI feature. **Verdict: cut from this turn, can add as a separate ticket.** |
+
+---
+
+## 🔁 Final UI sections after subtraction
+
 ```text
-HeroPanel              — black panel + yellow strip, name, tier chips, tagline, founded, Visit/Cold Email
-CompletenessBar        — real % style (mocked at 78%)
-AtAGlance              — 5 stat tiles (lawyers, partners, P:A, offices, openings)
-SignaturePractices     — top 5 with depth bars
-AllPractices           — chip cloud
-Footprint              — offices list with city, address, % bar
-Rankings               — Chambers/Legal500/IFLR cards
-Movements              — last 90d joins/exits feed
-OpenRoles              — vacancy cards (mocked)
-RecentActivity         — news feed with source + date
-AskAboutFirm           — restyled wrapper (reuses existing component, no logic change)
-SimilarFirms           — 3 cards
-ContactGrid            — 4-up: website, email, phone, HQ
-IntelFooter            — "Last updated X" + Request update mailto
+1. Hero  (name, tier, tagline, est. year, Visit website button)
+2. Locus Take
+3. Intelligence Completeness bar
+4. At a glance  (Lawyers, Partners, [P:A if both known], Offices, Open Roles)
+5. Signature Practices  (top 5 by partner count, with "partner strength" bar)
+6. All Practice Areas  (chip cloud)
+7. Office Presence  (city + address only, no % bars)
+8. Rankings & Recognition  (Chambers / Legal500 / IFLR cards)
+9. Current Openings  → links to existing /opportunities filtered by firm
+10. Recent Activity / News  (last 90 days from Bar & Bench, LiveLaw, ET)
+11. Ask About This Firm  (already built)
+12. Contact  (website, general email, careers email, phone, HQ)
+13. Footer  ("Last refreshed X · Request update" mailto)
 ```
 
-**Styling rules:**
-- Only existing tokens from `src/styles.css` (`--background`, `--foreground`, `--accent`, `--primary`, etc). No raw hex.
-- Hero uses `bg-foreground text-background` + `bg-accent` strip. Body sections use card tokens.
-- Each section is conditionally rendered via `if (!data) return null` — proves the "graceful disappear" pattern with mock toggles.
-
-**Untouched:** `/directory`, `FirmDrawer.tsx`, `FirmProfile.tsx`, nav, auth, every other route. Demo is a sealed sandbox.
-
-**Deliverable:** You open `/demofirminteligence`, we tweak spacing/colors/section order until you say "ship it."
+Every section conditionally renders — if data is missing, the section disappears (not "Unknown").
 
 ---
 
-## Phase 1 — Wire Firecrawl + Gemini extraction (after demo locked)
+## 🔗 How "Current Openings" links to existing pipeline
 
-No UI changes. Pure plumbing + admin trigger.
+The `vacancies` table joins on `firm_name` text (case-insensitive). On the firm profile we'll show up to 3 active vacancies as cards; each card links to `/opportunities` (or directly to the apply URL/email). A "See all openings" footer link goes to `/opportunities?firm=<name>` (we'll add the filter param).
 
-1. Add `FIRECRAWL_API_KEY` secret (you already provided the value).
-2. Migration: `alter table firm_profiles add column if not exists last_scraped_at timestamptz;`
-3. New edge function `refresh-firm-intelligence`:
-   - Input: `{ firm_slug }`
-   - Steps: load firm → Firecrawl scrape homepage → Firecrawl map + scrape top 4 of `/people|team|practice|office|contact|about/` → Firecrawl search `<name> site:barandbench.com OR site:livelaw.in` last month → concat markdown → Gemini `google/gemini-3-flash-preview` with strict JSON tool-call schema → write to `firm_profiles` (overwrite nulls only), `firm_offices`, `firm_practice_areas`, `firm_rankings`, `firm_news_mentions` → set `last_scraped_at`.
-4. Floating admin-only "✨ Refresh intelligence" button on `/directory/firms/:slug` (gated by existing admin role check).
-5. Pilot on Khaitan, Cyril Amarchand, AZB. Inspect output, iterate prompt.
+So we're **not duplicating** the opportunities feature — we're surfacing a slice of it inside the firm page.
 
 ---
 
-## Phase 2 — Promote demo UI to real `/directory/firms/:slug`
+## 🛠️ Build plan (this turn → next turns)
 
-Take the demo components, swap mock data for real loaders from `src/lib/firmIntelligence.ts`. Each section already conditionally renders — empty firms degrade naturally. Add real completeness % calculator.
+### Step A — Update demo UI to match the subtracted list
+Edit `src/pages/DemoFirmIntelligence.tsx`:
+- Remove: P:A tile (will conditionally show after Phase B), office % bars, Movements section, Similar Firms section, Generate cold email button
+- Add: Locus Take section (between Hero and Completeness)
+- Rename "depth" → "Partner strength"
+- Wire Current Openings to look like real vacancy cards with "See all →" link
+
+### Step B — Build Firecrawl + Gemini pipeline (Phase 1)
+- `supabase/functions/refresh-firm-intelligence/index.ts` — orchestrator
+- Steps: load firm → Firecrawl `map` website → `scrape` top 4 pages → `search` legal news (last month) → Gemini `google/gemini-3-flash-preview` with one tool-call schema → write to `firm_profiles` (NULL-safe), `firm_offices`, `firm_practice_areas`, `firm_rankings`, `firm_news_mentions` → bump `last_scraped_at` + `intelligence_completeness_score`
+- `src/components/firm/RefreshIntelligenceButton.tsx` — admin-only floating button on `/directory/firms/:slug`
+- Pilot on Khaitan, Cyril Amarchand, AZB
+
+### Step C — Promote demo UI to real `/directory/firms/:slug` (Phase 2, next loop)
+Take the now-final demo components, swap the mock `firm` constant for real loaders that read from the populated tables. Conditional rendering means non-piloted firms degrade gracefully.
+
+### Step D — Bulk backfill (Phase 3, one-off)
+Sandbox loop over enriched firms, ~5 Firecrawl credits each.
 
 ---
 
-## Phase 3 — Bulk backfill
+## 🔐 Secrets
 
-One-off `scripts/backfill-firm-intelligence.ts` via `code--exec`: loop 94 enriched firms, 2s delay, calls edge function. ~280 Firecrawl credits.
-
----
-
-## What we explicitly will NOT fake or build
-
-- Hiring velocity % (no historical data) — dropped permanently
-- Per-practice depth scores beyond what's extractable — degrade to chips
-- "Updated 2 days ago" if not actually scraped — show real timestamp or "Not yet enriched"
+Need only one new secret: **`FIRECRAWL_API_KEY`** (`fc-1f3fccf38b9048b3bd4bf6f3d2868822`).
+- `LOVABLE_API_KEY` — already configured ✅
+- Service role for DB writes — already in edge function env ✅
 
 ---
 
-## Files this turn (Phase 0 only)
+## What I'm NOT doing
 
-**New:**
-- `src/routes/demofirminteligence.tsx`
-- `src/lib/demoFirmIntel.ts` (mock data, single source of truth for tweaking)
-- `src/components/firm/intel/HeroPanel.tsx`
-- `src/components/firm/intel/CompletenessBar.tsx`
-- `src/components/firm/intel/AtAGlance.tsx`
-- `src/components/firm/intel/SignaturePractices.tsx`
-- `src/components/firm/intel/AllPractices.tsx`
-- `src/components/firm/intel/Footprint.tsx`
-- `src/components/firm/intel/Rankings.tsx`
-- `src/components/firm/intel/Movements.tsx`
-- `src/components/firm/intel/OpenRoles.tsx`
-- `src/components/firm/intel/RecentActivity.tsx`
-- `src/components/firm/intel/SimilarFirms.tsx`
-- `src/components/firm/intel/ContactGrid.tsx`
-- `src/components/firm/intel/IntelFooter.tsx`
+- Schema migrations (every needed table already exists, perfectly shaped)
+- Auth changes
+- Touching `/directory` listing or `FirmDrawer`
+- Building per-user OAuth or new connectors
 
-**Untouched:** everything else. No DB, no edge functions, no existing routes.
+---
+
+## Approve = I do Step A first (UI subtraction) so you can re-judge the demo, then ask for the Firecrawl key and do Step B in the same loop.
