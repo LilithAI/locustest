@@ -22,6 +22,7 @@ type FirmType = "Law Firm" | "Chamber" | "Individual Advocate";
 
 interface Firm {
   id?: string;
+  firm_slug?: string;
   name: string;
   address?: string;
   city?: string;
