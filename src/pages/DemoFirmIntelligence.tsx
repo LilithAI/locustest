@@ -6,18 +6,18 @@ import {
   Phone,
   Globe,
   MapPin,
-  Sparkles,
-  TrendingUp,
   Award,
   Newspaper,
   Briefcase,
   Users,
   Building2,
-  ArrowDownRight,
+  Quote,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* MOCK DATA — single source of truth, tweak freely                    */
+/* Reflects ONLY what we can realistically extract via Firecrawl+AI    */
+/* or already have in the DB.                                          */
 /* ------------------------------------------------------------------ */
 
 const firm = {
@@ -27,27 +27,35 @@ const firm = {
     "Full-service Indian law firm advising on the most complex M&A, disputes and regulatory mandates.",
   founded: 1911,
   website: "https://www.khaitanco.com",
-  email: "contact@khaitanco.com",
+  generalEmail: "contact@khaitanco.com",
+  careersEmail: "careers@khaitanco.com",
   phone: "+91 22 6636 5000",
   hq: "One World Centre, Mumbai",
 
+  // Manual editorial field (already in firm_profiles.locus_take)
+  locusTake:
+    "Heavyweight on M&A and banking with deep regulatory bench. Hires generously across PQE bands and runs a structured internship pipeline — one of the more reachable Tier 1s for non-NLU students with strong academics.",
+
   completeness: 78,
   lastScrapedAt: "2 days ago",
+  fieldsFilled: { filled: 18, total: 23 },
 
+  // Numbers we can actually pull from team/about pages
   stats: {
     lawyers: 1050,
     partners: 220,
-    paRatio: "1 : 3.8",
     offices: 6,
+    // openRoles will come live from vacancies table
     openRoles: 14,
   },
 
+  // partner_count drives "partner strength" bar (honest proxy, no fake depth score)
   signaturePractices: [
-    { name: "Mergers & Acquisitions", partners: 38, depth: 95 },
-    { name: "Banking & Finance", partners: 28, depth: 88 },
-    { name: "Dispute Resolution", partners: 32, depth: 84 },
-    { name: "Tax", partners: 21, depth: 78 },
-    { name: "Competition / Antitrust", partners: 14, depth: 72 },
+    { name: "Mergers & Acquisitions", partners: 38 },
+    { name: "Banking & Finance", partners: 28 },
+    { name: "Dispute Resolution", partners: 32 },
+    { name: "Tax", partners: 21 },
+    { name: "Competition / Antitrust", partners: 14 },
   ],
 
   allPractices: [
@@ -58,13 +66,14 @@ const firm = {
     "Regulatory", "Healthcare", "Media", "Sports Law",
   ],
 
+  // City + address only (no fake % share — headcount-per-office is rarely published)
   offices: [
-    { city: "Mumbai", address: "One World Centre, Lower Parel", share: 42 },
-    { city: "New Delhi", address: "Max Towers, Sector 16B, Noida", share: 28 },
-    { city: "Bengaluru", address: "Embassy Quest, Vittal Mallya Road", share: 14 },
-    { city: "Kolkata", address: "Emerald House, Old Post Office Street", share: 9 },
-    { city: "Chennai", address: "Apex Plaza, Nungambakkam High Road", share: 5 },
-    { city: "Singapore", address: "8 Marina View, Asia Square Tower 1", share: 2 },
+    { city: "Mumbai", address: "One World Centre, Lower Parel", isHq: true },
+    { city: "New Delhi", address: "Max Towers, Sector 16B, Noida", isHq: false },
+    { city: "Bengaluru", address: "Embassy Quest, Vittal Mallya Road", isHq: false },
+    { city: "Kolkata", address: "Emerald House, Old Post Office Street", isHq: false },
+    { city: "Chennai", address: "Apex Plaza, Nungambakkam High Road", isHq: false },
+    { city: "Singapore", address: "8 Marina View, Asia Square Tower 1", isHq: false },
   ],
 
   rankings: [
@@ -74,12 +83,7 @@ const firm = {
     { source: "Chambers Global", year: 2025, band: "Band 2", category: "Dispute Resolution" },
   ],
 
-  movements: [
-    { type: "join", name: "Aditi Sharma", role: "Partner — Tax", from: "Trilegal", date: "Mar 18" },
-    { type: "exit", name: "Rohan Mehta", role: "Partner — Disputes", to: "AZB & Partners", date: "Feb 27" },
-    { type: "join", name: "Karan Bhatia", role: "Counsel — TMT", from: "Shardul Amarchand", date: "Feb 10" },
-  ],
-
+  // Mirrors the live vacancies table — joined on firm_name
   openRoles: [
     { title: "Associate — M&A", office: "Mumbai", peq: "2-4 yrs PQE" },
     { title: "Senior Associate — Banking", office: "New Delhi", peq: "5-7 yrs PQE" },
@@ -91,12 +95,6 @@ const firm = {
     { title: "Firm represents Adani Group in cross-border arbitration", source: "LiveLaw", date: "Apr 03" },
     { title: "Khaitan opens dedicated AI & data protection desk", source: "Economic Times", date: "Mar 22" },
     { title: "Tax team wins ITAT relief for unicorn founder", source: "Bar & Bench", date: "Mar 15" },
-  ],
-
-  similarFirms: [
-    { name: "Cyril Amarchand Mangaldas", tier: "Tier 1", lawyers: 950 },
-    { name: "AZB & Partners", tier: "Tier 1", lawyers: 720 },
-    { name: "Shardul Amarchand Mangaldas", tier: "Tier 1", lawyers: 880 },
   ],
 };
 
@@ -155,12 +153,23 @@ const HeroPanel = () => (
         >
           Visit website <ArrowUpRight className="h-4 w-4" />
         </a>
-        <button className="inline-flex items-center gap-2 rounded-full border border-background/40 px-4 py-2 text-sm font-semibold text-background transition hover:bg-background hover:text-foreground">
-          <Mail className="h-4 w-4" /> Generate cold email
-        </button>
       </div>
     </div>
   </div>
+);
+
+const LocusTake = () => (
+  <Card className="border-l-4 border-l-accent">
+    <div className="flex items-start gap-4">
+      <Quote className="mt-1 h-5 w-5 shrink-0 text-accent" />
+      <div>
+        <div className="mb-1 text-[11px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
+          Locus take
+        </div>
+        <p className="text-base leading-relaxed text-foreground">{firm.locusTake}</p>
+      </div>
+    </div>
+  </Card>
 );
 
 const CompletenessBar = () => (
@@ -178,18 +187,22 @@ const CompletenessBar = () => (
       />
     </div>
     <div className="mt-2 text-xs text-muted-foreground">
-      Last refreshed {firm.lastScrapedAt} · 18 of 23 fields filled
+      Last refreshed {firm.lastScrapedAt} · {firm.fieldsFilled.filled} of {firm.fieldsFilled.total} fields filled
     </div>
   </div>
 );
 
 const AtAGlance = () => {
+  const showRatio = firm.stats.lawyers && firm.stats.partners;
+  const ratio = showRatio
+    ? `1 : ${(firm.stats.lawyers / firm.stats.partners).toFixed(1)}`
+    : null;
   const stats = [
     { label: "Lawyers", value: firm.stats.lawyers, icon: Users },
     { label: "Partners", value: firm.stats.partners, icon: Briefcase },
-    { label: "P : A ratio", value: firm.stats.paRatio, icon: TrendingUp },
+    ...(ratio ? [{ label: "P : A ratio", value: ratio, icon: Users }] : []),
     { label: "Offices", value: firm.stats.offices, icon: Building2 },
-    { label: "Open roles", value: firm.stats.openRoles, icon: Sparkles },
+    { label: "Open roles", value: firm.stats.openRoles, icon: Briefcase },
   ];
   return (
     <Card>
@@ -214,29 +227,38 @@ const AtAGlance = () => {
   );
 };
 
-const SignaturePractices = () => (
-  <Card>
-    <SectionHeader kicker="02" title="Signature practices" />
-    <div className="space-y-4">
-      {firm.signaturePractices.map((p) => (
-        <div key={p.name}>
-          <div className="mb-1.5 flex items-baseline justify-between">
-            <span className="text-sm font-semibold text-foreground">{p.name}</span>
-            <span className="text-xs text-muted-foreground">
-              {p.partners} partners
-            </span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-foreground"
-              style={{ width: `${p.depth}%` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  </Card>
-);
+const SignaturePractices = () => {
+  const max = Math.max(...firm.signaturePractices.map((p) => p.partners));
+  return (
+    <Card>
+      <SectionHeader kicker="02" title="Signature practices" />
+      <div className="space-y-4">
+        {firm.signaturePractices.map((p) => {
+          const pct = Math.round((p.partners / max) * 100);
+          return (
+            <div key={p.name}>
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <span className="text-sm font-semibold text-foreground">{p.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {p.partners} partners
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-foreground"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-4 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+        Bar = partner strength relative to firm's largest practice
+      </div>
+    </Card>
+  );
+};
 
 const AllPractices = () => (
   <Card>
@@ -257,22 +279,24 @@ const AllPractices = () => (
 const Footprint = () => (
   <Card>
     <SectionHeader kicker="04" title="Office presence" />
-    <div className="space-y-4">
+    <ul className="divide-y divide-border">
       {firm.offices.map((o) => (
-        <div key={o.city}>
-          <div className="mb-1 flex items-baseline justify-between">
-            <div className="text-sm">
-              <span className="font-semibold text-foreground">{o.city}</span>
-              <span className="ml-2 text-xs text-muted-foreground">{o.address}</span>
+        <li key={o.city} className="flex items-start gap-3 py-3">
+          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">{o.city}</span>
+              {o.isHq && (
+                <span className="rounded-full bg-accent px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent-foreground">
+                  HQ
+                </span>
+              )}
             </div>
-            <span className="text-xs font-mono text-muted-foreground">{o.share}%</span>
+            <div className="mt-0.5 text-xs text-muted-foreground">{o.address}</div>
           </div>
-          <div className="h-1 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-accent" style={{ width: `${o.share}%` }} />
-          </div>
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   </Card>
 );
 
@@ -300,63 +324,51 @@ const Rankings = () => (
   </Card>
 );
 
-const Movements = () => (
-  <Card>
-    <SectionHeader kicker="06" title="Team movements · last 90 days" />
-    <ul className="divide-y divide-border">
-      {firm.movements.map((m, i) => (
-        <li key={i} className="flex items-center gap-3 py-3">
-          <span
-            className={`flex h-8 w-8 items-center justify-center rounded-full ${
-              m.type === "join"
-                ? "bg-accent text-accent-foreground"
-                : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {m.type === "join" ? (
-              <ArrowDownRight className="h-4 w-4" />
-            ) : (
-              <ArrowUpRight className="h-4 w-4" />
-            )}
-          </span>
-          <div className="flex-1">
-            <div className="text-sm font-semibold text-foreground">
-              {m.name}{" "}
-              <span className="text-xs font-normal text-muted-foreground">
-                · {m.role}
-              </span>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {m.type === "join" ? `from ${m.from}` : `to ${m.to}`}
-            </div>
-          </div>
-          <span className="font-mono text-xs text-muted-foreground">{m.date}</span>
-        </li>
-      ))}
-    </ul>
-  </Card>
-);
-
 const OpenRoles = () => (
   <Card>
-    <SectionHeader kicker="07" title="Current openings" />
+    <div className="mb-5 flex items-end justify-between">
+      <div>
+        <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
+          06
+        </div>
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+          Current openings
+        </h2>
+      </div>
+      <Link
+        to={`/opportunities?firm=${encodeURIComponent(firm.name)}`}
+        className="text-xs font-semibold text-foreground underline-offset-4 hover:underline"
+      >
+        See all {firm.stats.openRoles} →
+      </Link>
+    </div>
     <div className="grid gap-3 md:grid-cols-3">
       {firm.openRoles.map((r, i) => (
-        <div key={i} className="rounded-xl border border-border bg-background p-4">
-          <div className="text-sm font-semibold text-foreground">{r.title}</div>
+        <Link
+          key={i}
+          to={`/opportunities?firm=${encodeURIComponent(firm.name)}`}
+          className="group rounded-xl border border-border bg-background p-4 transition hover:border-foreground"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-sm font-semibold text-foreground">{r.title}</div>
+            <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground transition group-hover:text-foreground" />
+          </div>
           <div className="mt-1 text-xs text-muted-foreground">{r.office}</div>
           <div className="mt-3 inline-block rounded-full bg-muted px-2 py-1 text-[10px] font-mono uppercase tracking-wider">
             {r.peq}
           </div>
-        </div>
+        </Link>
       ))}
+    </div>
+    <div className="mt-4 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+      Live from Locus opportunities feed · updated continuously
     </div>
   </Card>
 );
 
 const RecentActivity = () => (
   <Card>
-    <SectionHeader kicker="08" title="Recent activity" />
+    <SectionHeader kicker="07" title="Recent activity · last 90 days" />
     <ul className="divide-y divide-border">
       {firm.news.map((n, i) => (
         <li key={i} className="flex items-start gap-3 py-3">
@@ -376,7 +388,7 @@ const RecentActivity = () => (
 const AskAboutFirm = () => (
   <div className="rounded-2xl border border-foreground bg-foreground p-6 text-background">
     <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-background/60">
-      09
+      08
     </div>
     <h2 className="text-2xl font-semibold tracking-tight">Ask about this firm</h2>
     <p className="mt-2 text-sm text-background/70">
@@ -395,33 +407,18 @@ const AskAboutFirm = () => (
   </div>
 );
 
-const SimilarFirms = () => (
-  <Card>
-    <SectionHeader kicker="10" title="Similar firms" />
-    <div className="grid gap-3 md:grid-cols-3">
-      {firm.similarFirms.map((s) => (
-        <div key={s.name} className="rounded-xl border border-border bg-background p-4">
-          <div className="text-sm font-semibold text-foreground">{s.name}</div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {s.tier} · {s.lawyers} lawyers
-          </div>
-        </div>
-      ))}
-    </div>
-  </Card>
-);
-
 const ContactGrid = () => {
   const items = [
     { icon: Globe, label: "Website", value: firm.website.replace(/^https?:\/\//, "") },
-    { icon: Mail, label: "Email", value: firm.email },
+    { icon: Mail, label: "General", value: firm.generalEmail },
+    { icon: Mail, label: "Careers", value: firm.careersEmail },
     { icon: Phone, label: "Phone", value: firm.phone },
     { icon: MapPin, label: "HQ", value: firm.hq },
   ];
   return (
     <Card>
-      <SectionHeader kicker="11" title="Contact" />
-      <div className="grid gap-3 md:grid-cols-4">
+      <SectionHeader kicker="09" title="Contact" />
+      <div className="grid gap-3 md:grid-cols-5">
         {items.map((it) => (
           <div key={it.label} className="rounded-xl border border-border bg-background p-4">
             <it.icon className="mb-2 h-4 w-4 text-muted-foreground" />
@@ -468,6 +465,7 @@ const DemoFirmIntelligence = () => {
 
         <div className="space-y-5">
           <HeroPanel />
+          <LocusTake />
           <CompletenessBar />
           <AtAGlance />
           <div className="grid gap-5 md:grid-cols-2">
@@ -476,13 +474,9 @@ const DemoFirmIntelligence = () => {
           </div>
           <AllPractices />
           <Rankings />
-          <div className="grid gap-5 md:grid-cols-2">
-            <Movements />
-            <OpenRoles />
-          </div>
+          <OpenRoles />
           <RecentActivity />
           <AskAboutFirm />
-          <SimilarFirms />
           <ContactGrid />
           <IntelFooter />
         </div>
