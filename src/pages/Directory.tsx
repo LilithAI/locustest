@@ -526,9 +526,19 @@ export default function Directory() {
                       <span className="text-[11px] font-medium bg-accent/10 text-accent px-2 py-0.5 rounded-full">
                         {getType(f)}
                       </span>
-                      {(f as { verified?: string }).verified === "verified" && (
+                      {((f as { verified?: string }).verified === "verified" || intel?.chips.verified) && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-accent text-accent-foreground border border-foreground px-2 py-0.5 rounded-full">
                           <ShieldCheck size={10} /> Verified
+                        </span>
+                      )}
+                      {intel?.chips.hiring_now && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-foreground text-background px-2 py-0.5 rounded-full">
+                          <Sparkles size={10} /> Hiring
+                        </span>
+                      )}
+                      {intel?.chips.growing && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full">
+                          <TrendingUp size={10} /> Growing
                         </span>
                       )}
                       {f.rating && (
