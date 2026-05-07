@@ -47,7 +47,7 @@ export default function FirmProfilePage() {
     );
   }
 
-  const team = (profile.team_members as unknown as TeamMember[]) || [];
+  const team = normalizeTeam(profile.team_members);
   const offices = (profile.office_addresses as unknown as OfficeAddress[]) || [];
   const primaryEmail = profile.careers_email || profile.general_email;
   const signals = computeSignals(profile);
