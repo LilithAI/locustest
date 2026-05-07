@@ -37,6 +37,35 @@ type SourceRow = {
 
 const TIERS = ["tier_1", "tier_2", "tier_3", "boutique", "in_house", "psu", "big_4", "other"];
 
+const INDIA_TOKENS = [
+  "india", "bharat", "mumbai", "bombay", "delhi", "new delhi", "ncr", "gurugram", "gurgaon",
+  "noida", "bengaluru", "bangalore", "hyderabad", "chennai", "kolkata", "calcutta", "pune",
+  "ahmedabad", "chandigarh", "jaipur", "lucknow", "kochi", "cochin", "trivandrum", "thiruvananthapuram",
+  "indore", "bhopal", "nagpur", "surat", "vadodara", "visakhapatnam", "coimbatore", "mysuru", "mysore",
+  "goa", "guwahati", "patna", "ranchi", "raipur", "dehradun", "shimla",
+];
+const NON_INDIA_TOKENS = [
+  "london", "uk", "united kingdom", "england", "scotland", "manchester", "birmingham",
+  "singapore", "dubai", "abu dhabi", "uae", "riyadh", "saudi", "doha", "qatar",
+  "new york", "nyc", "usa", "u.s.", "united states", "san francisco", "los angeles", "boston", "chicago", "washington", "houston",
+  "hong kong", "shanghai", "beijing", "tokyo", "osaka", "seoul",
+  "sydney", "melbourne", "australia", "auckland",
+  "paris", "frankfurt", "munich", "berlin", "amsterdam", "brussels", "zurich", "geneva", "milan", "madrid",
+  "toronto", "vancouver", "montreal",
+];
+
+function isIndiaRow(row: QueueRow): boolean {
+  const ext = row.ai_extracted || {};
+  const hay = `${ext.location ?? ""} ${ext.country ?? ""} ${ext.city ?? ""}`.toLowerCase();
+  if (!hay.trim()) return true; // unknown — keep
+  if (NON_INDIA_TOKENS.some((t) => hay.includes(t)) && !INDIA_TOKENS.some((t) => hay.includes(t))) {
+    return false;
+  }
+  if (INDIA_TOKENS.some((t) => hay.includes(t))) return true;
+  // fallback: unknown jurisdiction → keep
+  return true;
+}
+
 export default function ReviewQueuePanel({ userId }: { userId: string }) {
   const [tab, setTab] = useState<"queue" | "sources">("queue");
   const [rows, setRows] = useState<QueueRow[]>([]);
