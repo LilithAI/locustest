@@ -348,20 +348,29 @@ function PreviewDialog({
     ? "email"
     : "external_url";
 
+  const eligibilityCombined = [ext.eligibility, ext.qualifications, ext.experience_years && `Experience: ${ext.experience_years}`]
+    .filter(Boolean).join("\n\n") || null;
+  const descriptionCombined = [
+    ext.description,
+    ext.responsibilities && `Responsibilities:\n${ext.responsibilities}`,
+    ext.start_date && `Start date: ${ext.start_date}`,
+    ext.deadline && `Deadline: ${ext.deadline}`,
+  ].filter(Boolean).join("\n\n") || null;
+
   const previewVacancy: Vacancy = {
     id: `preview-${row.id}`,
     firm_name: row.source_firm || "Unknown firm",
     role: ext.role || row.source_title || "(no role)",
     opportunity_type: ext.opportunity_type === "job" ? "job" : "internship",
-    location: ext.location || null,
+    location: ext.location || ext.country || null,
     application_mode: mode,
     application_email: mode === "email" ? (ext.application_email || null) : null,
     application_url: mode === "external_url" ? (ext.apply_url || row.source_url || null) : null,
     tier: null,
     practice_area: ext.practice_area || null,
-    eligibility: ext.eligibility || null,
+    eligibility: eligibilityCombined,
     stipend: ext.stipend || null,
-    description: ext.description || null,
+    description: descriptionCombined,
     task_brief: ext.task_brief || null,
     source_credit: `Auto-aggregated from ${row.source_firm} careers page`,
     posted_at: now,
@@ -428,6 +437,8 @@ function ReviewDialog({
   useEffect(() => {
     if (row) {
       const e = row.ai_extracted || {};
+      const elig = [e.eligibility, e.qualifications, e.experience_years && `Experience: ${e.experience_years}`].filter(Boolean).join("\n\n");
+      const desc = [e.description, e.responsibilities && `Responsibilities:\n${e.responsibilities}`, e.start_date && `Start date: ${e.start_date}`, e.deadline && `Deadline: ${e.deadline}`].filter(Boolean).join("\n\n");
       setFields({
         firm_name: row.source_firm ?? "",
         role: e.role ?? row.source_title ?? "",
@@ -435,12 +446,13 @@ function ReviewDialog({
         application_mode: e.application_mode ?? (e.apply_url || row.source_url ? "external_url" : "email"),
         application_email: e.application_email ?? "",
         application_url: e.apply_url ?? row.source_url ?? "",
-        location: e.location ?? "",
-        eligibility: e.eligibility ?? "",
+        location: e.location ?? e.country ?? "",
+        eligibility: elig,
         stipend: e.stipend ?? "",
-        description: e.description ?? "",
+        description: desc,
         tier: "",
-        practice_area: "",
+        practice_area: e.practice_area ?? "",
+        task_brief: e.task_brief ?? "",
       });
     }
   }, [row]);
