@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePageMeta } from "@/hooks/usePageMeta";
-import { Building2, MapPin, Star, Phone, Mail, GitCompareArrows, Trophy, ArrowRight, Rocket, Globe, Users, Scale, ShieldCheck } from "lucide-react";
+import { Building2, MapPin, Star, Phone, Mail, GitCompareArrows, Trophy, ArrowRight, Rocket, Globe, Users, Scale, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
+import { loadIntelligenceIndex, getIntelligenceForName, type FirmIntelligenceSummary } from "@/lib/firmIntelligence";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { shareOrCopy, withRef } from "@/lib/share";
