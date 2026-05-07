@@ -476,6 +476,7 @@ export default function Directory() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {paginated.map((f, i) => {
                 const isCompared = compareList.some((c) => c.name === f.name);
+                const intel = intelIndex ? getIntelligenceForName(intelIndex, f.name) : null;
                 return (
                   <div
                     key={`${f.name}-${i}`}
