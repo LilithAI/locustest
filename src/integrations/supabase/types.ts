@@ -2154,6 +2154,17 @@ export type Database = {
           sessions: number
         }[]
       }
+      bar_browse_challenges: {
+        Args: {
+          p_area?: string
+          p_diff?: string
+          p_limit?: number
+          p_offset?: number
+          p_sort?: string
+          p_type?: string
+        }
+        Returns: Json
+      }
       claim_beta_slot: {
         Args: {
           p_email: string
