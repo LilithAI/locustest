@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePageMeta } from "@/hooks/usePageMeta";
-import { Building2, MapPin, Star, Phone, Mail, GitCompareArrows, Trophy, ArrowRight, Rocket, Globe, Users, Scale, ShieldCheck } from "lucide-react";
+import { Building2, MapPin, Star, Phone, Mail, GitCompareArrows, Trophy, ArrowRight, Rocket, Globe, Users, Scale, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
+import { loadIntelligenceIndex, getIntelligenceForName, type FirmIntelligenceSummary } from "@/lib/firmIntelligence";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { shareOrCopy, withRef } from "@/lib/share";
@@ -105,6 +106,12 @@ export default function Directory() {
     (searchParams.get("sLegal") as "" | "yes" | "no") ?? "",
   );
 
+  // Intelligence filters
+  const [verifiedOnly, setVerifiedOnly] = useState(searchParams.get("verified") === "1");
+  const [hiringOnly, setHiringOnly] = useState(searchParams.get("hiring") === "1");
+  const [intelIndex, setIntelIndex] = useState<Map<string, FirmIntelligenceSummary> | null>(null);
+  useEffect(() => { loadIntelligenceIndex().then(setIntelIndex); }, []);
+
   // Reset page on mode switch
   useEffect(() => { setPage(1); setView("grid"); }, [mode]);
 
@@ -141,9 +148,15 @@ export default function Directory() {
       if (area && f.area !== area) return false;
       if (tier && f.tier !== tier) return false;
       if (type && getType(f) !== type) return false;
+      if (verifiedOnly || hiringOnly) {
+        if (!intelIndex) return false;
+        const intel = getIntelligenceForName(intelIndex, f.name);
+        if (verifiedOnly && !intel?.chips.verified) return false;
+        if (hiringOnly && !intel?.chips.hiring_now) return false;
+      }
       return true;
     });
-  }, [search, city, area, tier, type, channel]);
+  }, [search, city, area, tier, type, channel, verifiedOnly, hiringOnly, intelIndex]);
 
   // Sorted — tier is the primary key; verified only floats within the same tier
   const sorted = useMemo(() => {
@@ -224,9 +237,12 @@ export default function Directory() {
   if (area) activeFilters.push({ label: `Area: ${area}`, key: "area", clear: () => setArea("") });
   if (tier) activeFilters.push({ label: `Tier: ${tier}`, key: "tier", clear: () => setTier("") });
   if (type) activeFilters.push({ label: `Type: ${type}`, key: "type", clear: () => setType("") });
+  if (verifiedOnly) activeFilters.push({ label: "Verified only", key: "verified", clear: () => setVerifiedOnly(false) });
+  if (hiringOnly) activeFilters.push({ label: "Hiring now", key: "hiring", clear: () => setHiringOnly(false) });
 
   const clearAll = useCallback(() => {
     setSearchInput(""); setCity(""); setArea(""); setTier(""); setType(""); setSort("relevance");
+    setVerifiedOnly(false); setHiringOnly(false);
   }, []);
 
   const toggleCompare = useCallback((firm: (typeof firms)[0]) => {
@@ -416,6 +432,25 @@ export default function Directory() {
         activeCount={activeFilters.length}
       />
 
+      {/* Intelligence quick-toggles */}
+      <section className="container mx-auto px-4 md:px-8 -mt-2 mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mr-1">Intelligence:</span>
+        <button
+          type="button"
+          onClick={() => setVerifiedOnly((v) => !v)}
+          className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border-2 transition-all ${verifiedOnly ? "bg-accent text-accent-foreground border-foreground" : "bg-card border-border/60 text-muted-foreground hover:border-accent"}`}
+        >
+          <ShieldCheck size={11} /> Verified only
+        </button>
+        <button
+          type="button"
+          onClick={() => setHiringOnly((v) => !v)}
+          className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border-2 transition-all ${hiringOnly ? "bg-foreground text-background border-foreground" : "bg-card border-border/60 text-muted-foreground hover:border-foreground"}`}
+        >
+          <Sparkles size={11} /> Hiring now
+        </button>
+      </section>
+
       {/* Results count */}
       <section className="container mx-auto px-4 md:px-8 mb-4">
         <p className="text-sm text-muted-foreground">
@@ -441,6 +476,7 @@ export default function Directory() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {paginated.map((f, i) => {
                 const isCompared = compareList.some((c) => c.name === f.name);
+                const intel = intelIndex ? getIntelligenceForName(intelIndex, f.name) : null;
                 return (
                   <div
                     key={`${f.name}-${i}`}
@@ -490,9 +526,19 @@ export default function Directory() {
                       <span className="text-[11px] font-medium bg-accent/10 text-accent px-2 py-0.5 rounded-full">
                         {getType(f)}
                       </span>
-                      {(f as { verified?: string }).verified === "verified" && (
+                      {((f as { verified?: string }).verified === "verified" || intel?.chips.verified) && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-accent text-accent-foreground border border-foreground px-2 py-0.5 rounded-full">
                           <ShieldCheck size={10} /> Verified
+                        </span>
+                      )}
+                      {intel?.chips.hiring_now && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-foreground text-background px-2 py-0.5 rounded-full">
+                          <Sparkles size={10} /> Hiring
+                        </span>
+                      )}
+                      {intel?.chips.growing && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full">
+                          <TrendingUp size={10} /> Growing
                         </span>
                       )}
                       {f.rating && (

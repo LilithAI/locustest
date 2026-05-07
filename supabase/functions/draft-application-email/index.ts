@@ -516,11 +516,53 @@ REWRITE RULES:
 - All HARD RULES, blocklists and recipient-type rules above still apply.`
       : "";
 
+    // Firm-aware enrichment: look up firm_profiles + signature practices + latest news
+    // by normalized firm name. Strict no-fabricate: only fields that are present
+    // are passed to the model, and the prompt orders the model to use them verbatim.
+    let firmContextBlock = "";
+    if (!isFollowup && v.data.target.kind === "firm") {
+      try {
+        const sb = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? SUPABASE_ANON_KEY);
+        const norm = (s: string) => s
+          .toLowerCase()
+          .replace(/[&,.'"`’()]+/g, " ")
+          .replace(/\b(llp|llc|inc|ltd|co|company|the|and|associates|advocates|solicitors|partners|law|legal|firm|chambers|attorneys|offices)\b/g, " ")
+          .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, "-");
+        const targetKey = norm(v.data.target.name);
+        const { data: profiles } = await sb
+          .from("firm_profiles")
+          .select("firm_slug, firm_name, tier, headcount_band, hq_city, tagline, careers_email, general_email");
+        const match = (profiles ?? []).find((p: { firm_name: string }) => norm(p.firm_name) === targetKey);
+        if (match) {
+          const [paRes, newsRes] = await Promise.all([
+            sb.from("firm_practice_areas").select("area, is_signature").eq("firm_slug", match.firm_slug).eq("is_signature", true).limit(5),
+            sb.from("firm_news_mentions").select("title, published_at").eq("firm_slug", match.firm_slug).order("published_at", { ascending: false }).limit(1),
+          ]);
+          const ctx: Record<string, unknown> = {};
+          if (match.tier && match.tier !== "untiered") ctx.tier = match.tier;
+          if (match.headcount_band) ctx.size_band = match.headcount_band;
+          if (match.hq_city) ctx.hq_city = match.hq_city;
+          if (match.tagline) ctx.tagline = match.tagline;
+          const signature = (paRes.data ?? []).map((p: { area: string }) => p.area);
+          if (signature.length) ctx.signature_practices = signature;
+          if (match.careers_email) ctx.preferred_recipient_email = match.careers_email;
+          else if (match.general_email) ctx.preferred_recipient_email = match.general_email;
+          const latest = (newsRes.data ?? [])[0];
+          if (latest?.title) ctx.latest_news_headline = latest.title;
+          if (Object.keys(ctx).length) {
+            firmContextBlock = `\n\nFIRM CONTEXT (verified facts from Locus intelligence — you MAY reference these naturally; do NOT fabricate any field not listed here):\n${JSON.stringify(ctx, null, 2)}\n\nFIRM-CONTEXT RULES:\n- If signature_practices is present, mention ONE practice area from this list as the sender's specific reason for choosing this firm. Do not invent practice areas not listed.\n- If hq_city is present, you may reference it factually. Do not invent office cities.\n- If tier is present, calibrate formality but do NOT name-drop the tier in the email body.\n- Never quote the latest_news_headline verbatim; you may obliquely reference recent activity if it is genuinely relevant.\n- Any fact not in FIRM CONTEXT and not in TARGET/SENDER must NOT appear in the draft.`;
+          }
+        }
+      } catch (e) {
+        console.warn("[draft-application-email] firm-context lookup failed:", e);
+      }
+    }
+
     const userPrompt = isFollowup
       ? `TARGET:\n${JSON.stringify(v.data.target, null, 2)}\n\nSENDER:\n${JSON.stringify(
           { display_name: v.data.user.display_name, college: v.data.user.college, degree: v.data.user.degree }, null, 2,
         )}${originalBlock}\n\nDraft the SHORT follow-up email now via the draft_email tool.`
-      : `${buildTypeBlock(v.data.recipient_type)}\n\nTARGET:\n${JSON.stringify(v.data.target, null, 2)}\n\nSENDER:\n${JSON.stringify(senderForPrompt, null, 2)}\n\nROLE: ${v.data.role}\nTONE: ${v.data.tone}${briefBlock}${rewriteBlock}\n\nDraft the email now via the draft_email tool.`;
+      : `${buildTypeBlock(v.data.recipient_type)}\n\nTARGET:\n${JSON.stringify(v.data.target, null, 2)}${firmContextBlock}\n\nSENDER:\n${JSON.stringify(senderForPrompt, null, 2)}\n\nROLE: ${v.data.role}\nTONE: ${v.data.tone}${briefBlock}${rewriteBlock}\n\nDraft the email now via the draft_email tool.`;
 
     const activeSystemPrompt = isFollowup
       ? FOLLOWUP_SYSTEM_PROMPT
