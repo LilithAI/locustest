@@ -237,9 +237,12 @@ export default function Directory() {
   if (area) activeFilters.push({ label: `Area: ${area}`, key: "area", clear: () => setArea("") });
   if (tier) activeFilters.push({ label: `Tier: ${tier}`, key: "tier", clear: () => setTier("") });
   if (type) activeFilters.push({ label: `Type: ${type}`, key: "type", clear: () => setType("") });
+  if (verifiedOnly) activeFilters.push({ label: "Verified only", key: "verified", clear: () => setVerifiedOnly(false) });
+  if (hiringOnly) activeFilters.push({ label: "Hiring now", key: "hiring", clear: () => setHiringOnly(false) });
 
   const clearAll = useCallback(() => {
     setSearchInput(""); setCity(""); setArea(""); setTier(""); setType(""); setSort("relevance");
+    setVerifiedOnly(false); setHiringOnly(false);
   }, []);
 
   const toggleCompare = useCallback((firm: (typeof firms)[0]) => {
