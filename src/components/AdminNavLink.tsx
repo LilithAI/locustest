@@ -4,14 +4,14 @@
  * dependencies for anonymous visitors. Shows for any admin scope.
  */
 import { useEffect, useState } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useLocation } from "react-router-dom";
 import { Shield } from "lucide-react";
 import { prefetchRoute } from "@/lib/prefetch";
 
 export default function AdminNavLink() {
   const [enabled, setEnabled] = useState(false);
   const [show, setShow] = useState(false);
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const location = useLocation();
 
   useEffect(() => {
     const ric = (window as unknown as {
@@ -26,7 +26,7 @@ export default function AdminNavLink() {
   }, []);
 
   if (!enabled) return null;
-  return <AdminCheck onResult={setShow} render={show} location={pathname} />;
+  return <AdminCheck onResult={setShow} render={show} location={location.pathname} />;
 }
 
 function AdminCheck({

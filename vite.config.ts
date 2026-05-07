@@ -7,7 +7,6 @@ import path from "path";
 import { writeFileSync, mkdirSync } from "fs";
 import { componentTagger } from "lovable-tagger";
 import { visualizer } from "rollup-plugin-visualizer";
-import { tanstackRouter } from "@tanstack/router-plugin/vite";
 
 const BUILD_VERSION = Date.now().toString();
 
@@ -47,15 +46,6 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     { enforce: "pre" as const, ...mdx({ jsxRuntime: "automatic", development: false, providerImportSource: "@mdx-js/react", remarkPlugins: [remarkGfm], rehypePlugins: [rehypeSlug] }) } as Plugin,
-    // TanStack Router file-based routing. Generates src/routeTree.gen.ts from
-    // files under src/routes/. This is what Lovable's preview route picker
-    // scans to populate the URL dropdown.
-    tanstackRouter({
-      target: "react",
-      autoCodeSplitting: true,
-      routesDirectory: "src/routes",
-      generatedRouteTree: "src/routeTree.gen.ts",
-    }) as Plugin,
     react(),
     mode === "development" && componentTagger(),
     writeVersionJsonPlugin(),
@@ -71,10 +61,6 @@ export default defineConfig(({ mode }) => ({
   ].filter(Boolean),
   resolve: {
     alias: {
-      // Drop-in shim — every existing `from "react-router-dom"` import is
-      // routed through src/lib/rrd.tsx, which adapts the API to TanStack
-      // Router. Keeps the migration to a small, controlled diff.
-      "react-router-dom": path.resolve(__dirname, "./src/lib/rrd.tsx"),
       "@": path.resolve(__dirname, "./src"),
       "react": path.resolve(__dirname, "./node_modules/react"),
       "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
@@ -94,9 +80,7 @@ export default defineConfig(({ mode }) => ({
           if (
             id.includes("/react/") ||
             id.includes("/react-dom/") ||
-            id.includes("/@tanstack/react-router") ||
-            id.includes("/@tanstack/router-core") ||
-            id.includes("/@tanstack/history") ||
+            id.includes("/react-router") ||
             id.includes("/scheduler/")
           ) {
             return "react-vendor";

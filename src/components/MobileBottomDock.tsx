@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import {
   Home,
@@ -53,7 +53,7 @@ function getActiveKey(pathname: string, homeHref: string): string {
 }
 
 export default function MobileBottomDock() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { pathname } = useLocation();
   const navigate = useNavigate();
   const { setOpen: setSearchOpen } = useCommandPalette();
   const { userId } = useAuthSession();
@@ -148,7 +148,7 @@ export default function MobileBottomDock() {
     if (contextAction === "join") {
       const target = document.getElementById("waitlist");
       if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-      else void navigate({ to: "/waitlist" });
+      else navigate("/waitlist");
       resetIdle();
     }
   };
@@ -211,7 +211,7 @@ export default function MobileBottomDock() {
                       return (
                         <Link
                           key={to}
-                          to={to as never}
+                          to={to}
                           aria-label={label}
                           onTouchStart={() => prefetchRoute(to)}
                           onMouseEnter={() => prefetchRoute(to)}

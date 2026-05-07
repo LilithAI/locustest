@@ -9,7 +9,6 @@ import { ShareIconButton } from "@/components/ShareIconButton";
 import firms from "@/data/firms.json";
 import startupsData from "@/data/startups.json";
 import FirmDrawer from "@/components/FirmDrawer";
-import FirmIntelligenceBadge from "@/components/directory/FirmIntelligenceBadge";
 import CompareBar from "@/components/CompareBar";
 import DirectoryMap from "@/components/DirectoryMap";
 import StartupDrawer, { type Startup } from "@/components/StartupDrawer";
@@ -496,7 +495,6 @@ export default function Directory() {
                           <ShieldCheck size={10} /> Verified
                         </span>
                       )}
-                      {(f as { firm_slug?: string }).firm_slug && <FirmIntelligenceBadge size="sm" />}
                       {f.rating && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent ml-auto whitespace-nowrap">
                           <Star size={11} className="fill-accent" /> {f.rating}

@@ -862,7 +862,7 @@ function factTiles(item: AnyOpportunity): FactTile[] {
       if (item.location) tiles.push({ icon: MapPin, label: "Location", value: item.location });
       if (item.stipend) tiles.push({ icon: Coins, label: "Stipend", value: item.stipend });
       if (item.eligibility && item.eligibility.length <= 80) tiles.push({ icon: GraduationCap, label: "Eligibility", value: item.eligibility });
-      tiles.push({ icon: Mail, label: "Apply via", value: item.application_email ?? "" });
+      tiles.push({ icon: Mail, label: "Apply via", value: item.application_email });
       break;
     case "cfp":
       tiles.push({ icon: Clock, label: "Submission deadline", value: fmtDateTime(item.deadline) });

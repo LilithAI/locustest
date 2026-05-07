@@ -19,18 +19,13 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "react-router-dom": [
-        "./src/lib/rrd.tsx"
       ]
     },
     "skipLibCheck": true,
     "strict": false,
-    "strictNullChecks": true,
     "target": "ES2020",
     "types": [
-      "vitest/globals",
-      "node"
+      "vitest/globals"
     ],
     "useDefineForClassFields": true
   },

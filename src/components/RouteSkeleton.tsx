@@ -1,16 +1,11 @@
-import { useRouterState } from "@tanstack/react-router";
+import { useLocation } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import TopProgressBar from "./TopProgressBar";
 
 /**
  * Route-aware Suspense fallback. Replaces the old "blank screen + thin yellow
  * bar" with a content-shaped skeleton so navigations feel instant. Pure
- * presentation — no hooks beyond the router pathname.
- *
- * IMPORTANT: reads pathname directly from TanStack Router via useRouterState
- * with a select function. Going through the react-router-dom shim's
- * useLocation here was the source of the `match._nonReactive` crash during
- * route transitions.
+ * presentation — no hooks, no data, no heavy imports.
  */
 
 type Shape =
@@ -60,6 +55,7 @@ const Card = ({ className = "" }: { className?: string }) => (
 function AppShape() {
   return (
     <>
+      {/* Identity row */}
       <div className="flex items-center gap-4 border-2 border-border bg-card p-4 shadow-[3px_3px_0_0_hsl(var(--border))]">
         <Skeleton className="h-14 w-14 rounded-full" />
         <div className="flex-1 space-y-2">
@@ -67,14 +63,17 @@ function AppShape() {
           <Skeleton className="h-3 w-24" />
         </div>
       </div>
+      {/* Strength meter */}
       <div className="border-2 border-border bg-card p-5 shadow-[3px_3px_0_0_hsl(var(--border))] space-y-3">
         <Skeleton className="h-3 w-32" />
         <Skeleton className="h-4 w-full" />
       </div>
+      {/* Activity heatmap */}
       <div className="border-2 border-border bg-card p-5 shadow-[3px_3px_0_0_hsl(var(--border))]">
         <Skeleton className="h-3 w-24 mb-3" />
         <Skeleton className="h-28 w-full" />
       </div>
+      {/* 3-pane grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="h-64" />
         <Card className="h-64" />
@@ -285,12 +284,11 @@ const shapeMap: Record<Shape, () => JSX.Element> = {
 };
 
 export default function RouteSkeleton() {
-  const pathname = useRouterState({
-    select: (s) => s.resolvedLocation?.pathname ?? s.location.pathname,
-  });
+  const { pathname } = useLocation();
   const shape = getShape(pathname);
   const ShapeComponent = shapeMap[shape];
 
+  // Auth routes live outside <Layout> — render full-screen, no page padding.
   if (shape === "auth") {
     return (
       <>

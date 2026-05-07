@@ -38,9 +38,9 @@ export default function PlaybookGuide() {
 
   usePageMeta({
     title: guide ? `${guide.title} — The Playbook` : "Playbook",
-    description: (guide
+    description: guide
       ? `Read ${guide.title} on Locus — a practical guide for ${guide.audience.toLowerCase()}.`
-      : undefined) as string,
+      : undefined,
     path: slug ? `/playbook/${slug}` : "/playbook",
   });
 

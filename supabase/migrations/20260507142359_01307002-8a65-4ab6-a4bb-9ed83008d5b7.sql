@@ -1,1 +1,0 @@
-ALTER TABLE public.email_send_state RENAME TO email_send_dedupe;

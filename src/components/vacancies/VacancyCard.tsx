@@ -302,36 +302,26 @@ export default function VacancyCard({ vacancy, onApply, archived = false, applic
           </AlertDialogContent>
         </AlertDialog>
 
-        {!isClosed && appState === "idle" && (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {onApply && (
-              <Button
-                onClick={() => {
-                  void track("vacancy_apply_clicked", { vacancy_id: vacancy.id, mode: "initial" });
-                  onApply(vacancy);
-                }}
-                variant={vacancy.application_url ? "outline" : "default"}
-                className="font-bold border-2 border-foreground/80 shadow-[3px_3px_0_0_hsl(var(--foreground))] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_hsl(var(--foreground))] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-              >
-                <Mail size={14} className="mr-1.5" />
-                Draft application
-              </Button>
-            )}
-            {vacancy.application_url && (
-              <a
-                href={vacancy.application_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {
-                  void track("vacancy_apply_clicked", { vacancy_id: vacancy.id, mode: "portal" });
-                }}
-                className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 text-sm font-bold border-2 border-foreground/80 shadow-[3px_3px_0_0_hsl(var(--foreground))] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_hsl(var(--foreground))] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
-              >
+        {!isClosed && onApply && appState === "idle" && (
+          <Button
+            onClick={() => {
+              void track("vacancy_apply_clicked", { vacancy_id: vacancy.id, mode: "initial" });
+              onApply(vacancy);
+            }}
+            className="font-bold border-2 border-foreground/80 shadow-[3px_3px_0_0_hsl(var(--foreground))] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_hsl(var(--foreground))] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+          >
+            {vacancy.application_mode === "external_url" ? (
+              <>
                 <ExternalLinkIcon size={14} className="mr-1.5" />
                 Apply on portal
-              </a>
+              </>
+            ) : (
+              <>
+                <Mail size={14} className="mr-1.5" />
+                Draft application
+              </>
             )}
-          </div>
+          </Button>
         )}
 
         {!isClosed && appState === "applied" && (

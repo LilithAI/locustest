@@ -1,11 +1,11 @@
 import { lazy, Suspense } from "react";
-import { useRouterState } from "@tanstack/react-router";
+import { useLocation } from "react-router-dom";
 
 const FooterArcade = lazy(() => import("./FooterArcade"));
 
 export default function Footer() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const showArcade = pathname !== "/the-bar";
+  const location = useLocation();
+  const showArcade = location.pathname !== "/the-bar";
 
   return (
     <footer className="relative">

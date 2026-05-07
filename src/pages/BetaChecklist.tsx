@@ -218,8 +218,8 @@ export default function BetaChecklist() {
     try {
       const { data, error } = await supabase.rpc("claim_beta_slot", {
         p_name: name,
-        p_email: (claimEmail.trim() || null) as string,
-        p_user_id: userId as string,
+        p_email: claimEmail.trim() || null,
+        p_user_id: userId,
         p_is_public: claimPublic,
       });
       if (error) throw error;

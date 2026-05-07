@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, RefreshCw, ExternalLink, Check, X, AlertTriangle, Eye } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, RefreshCw, ExternalLink, Check, X, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,8 +10,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import VacancyCard from "@/components/vacancies/VacancyCard";
-import type { Vacancy, VacancyTier } from "@/lib/vacancies";
 
 type QueueRow = {
   id: string;
@@ -24,31 +22,14 @@ type QueueRow = {
   status: "pending" | "approved" | "rejected" | "duplicate";
   discovered_at: string;
   notes: string | null;
-  role_title: string | null;
-  role_type: string | null;
-  location: string | null;
-  pqe_min: number | null;
-  pqe_max: number | null;
-  eligibility_india: "eligible" | "ambiguous" | "ineligible" | "unknown";
-  eligibility_reason: string | null;
-  eligibility_confidence: number | null;
-  lifecycle_status: "active" | "stale" | "expired";
-  consecutive_misses: number;
 };
 
 type SourceRow = {
   id: string;
-  name: string | null;
-  firm_name: string | null;
+  firm_name: string;
   url: string;
   active: boolean;
-  source_type: string;
-  tier: string;
-  country: string;
-  scrape_frequency: string;
-  pipeline_status: string;
   last_scraped_at: string | null;
-  last_success_at: string | null;
   last_status: string | null;
   last_error: string | null;
   scrape_count: number;
@@ -56,62 +37,14 @@ type SourceRow = {
 
 const TIERS = ["tier_1", "tier_2", "tier_3", "boutique", "in_house", "psu", "big_4", "other"];
 
-type QueueTab = "eligible" | "ambiguous" | "ineligible" | "sources";
-
-// Build an in-memory Vacancy object from a queue row (+ optional edits) so the
-// real public <VacancyCard> can render exactly how it will appear once promoted.
-export function buildPreviewVacancy(row: QueueRow, fields?: Record<string, any>): Vacancy {
-  const e = (row.ai_extracted || {}) as Record<string, any>;
-  const f = fields || {};
-  const description: string =
-    (f.description as string | undefined) ??
-    (e.description_full as string | undefined) ??
-    (e.description as string | undefined) ??
-    (e.description_excerpt as string | undefined) ??
-    row.eligibility_reason ??
-    "";
-  const mode = (f.application_mode ?? e.application_mode ?? "external_url") === "email" ? "email" : "external_url";
-  const now = new Date();
-  const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-  const tierVal = (f.tier ?? "") as string;
-  const tier = (tierVal && tierVal !== "none" ? tierVal : null) as VacancyTier | null;
-  return {
-    id: `preview-${row.id}`,
-    firm_name: (f.firm_name as string) || row.source_firm || "Unknown Firm",
-    role: (f.role as string) || row.role_title || row.source_title || "(Untitled role)",
-    opportunity_type: (f.opportunity_type as any) || (row.role_type === "internship" ? "internship" : "job"),
-    location: (f.location as string) || row.location || (e.location as string) || null,
-    application_mode: mode,
-    application_email: mode === "email" ? ((f.application_email as string) || null) : null,
-    application_url: mode === "external_url"
-      ? ((f.application_url as string) || (e.apply_url as string) || row.source_url)
-      : null,
-    tier,
-    practice_area: (f.practice_area as string) || (e.practice_area as string) || null,
-    eligibility: (f.eligibility as string) || row.eligibility_reason || null,
-    stipend: (f.stipend as string) || (e.stipend as string) || null,
-    description: description || null,
-    task_brief: null,
-    source_credit: `Auto-aggregated from ${row.source_firm ?? "source"} careers page`,
-    posted_at: now.toISOString(),
-    expires_at: expires.toISOString(),
-    status: "live",
-    created_by: "preview",
-    created_at: now.toISOString(),
-    updated_at: now.toISOString(),
-  };
-}
-
 export default function ReviewQueuePanel({ userId }: { userId: string }) {
-  const [tab, setTab] = useState<QueueTab>("eligible");
+  const [tab, setTab] = useState<"queue" | "sources">("queue");
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [sources, setSources] = useState<SourceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [scrapingId, setScrapingId] = useState<string | null>(null);
-  const [tickRunning, setTickRunning] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<QueueRow | null>(null);
-  const [previewing, setPreviewing] = useState<QueueRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -210,109 +143,64 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
     else { toast.success("Promoted to live vacancy"); setOpen(false); setEditing(null); await load(); }
   };
 
-  const eligible = rows.filter((r) => r.eligibility_india === "eligible");
-  const ambiguous = rows.filter((r) => r.eligibility_india === "ambiguous" || r.eligibility_india === "unknown");
-  const ineligible = rows.filter((r) => r.eligibility_india === "ineligible");
-
-  const tickAll = async (force = false) => {
-    setTickRunning(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("scrape-tick", {
-        body: force ? { force: true } : {},
-      });
-      if (error) throw error;
-      const d = data as { processed?: number };
-      toast.success(`${force ? "Scrape all" : "Tick"} processed ${d.processed ?? 0} sources`);
-      await load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Tick failed");
-    } finally {
-      setTickRunning(false);
-    }
-  };
-
-  const tabRows = tab === "eligible" ? eligible : tab === "ambiguous" ? ambiguous : tab === "ineligible" ? ineligible : [];
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 flex-wrap">
-        <Button size="sm" variant={tab === "eligible" ? "default" : "outline"} onClick={() => setTab("eligible")} className="font-bold border-2 border-foreground">
-          ✅ Eligible ({eligible.length})
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant={tab === "queue" ? "default" : "outline"}
+          onClick={() => setTab("queue")}
+          className="font-bold border-2 border-foreground"
+        >
+          Queue ({rows.length})
         </Button>
-        <Button size="sm" variant={tab === "ambiguous" ? "default" : "outline"} onClick={() => setTab("ambiguous")} className="font-bold border-2 border-foreground">
-          ⚠️ Ambiguous ({ambiguous.length})
+        <Button
+          size="sm"
+          variant={tab === "sources" ? "default" : "outline"}
+          onClick={() => setTab("sources")}
+          className="font-bold border-2 border-foreground"
+        >
+          Sources ({sources.length})
         </Button>
-        <Button size="sm" variant={tab === "ineligible" ? "default" : "outline"} onClick={() => setTab("ineligible")} className="font-bold border-2 border-foreground">
-          🔴 Ineligible ({ineligible.length})
+        <Button size="sm" variant="ghost" onClick={() => void load()} className="ml-auto">
+          <RefreshCw size={14} className="mr-1" /> Refresh
         </Button>
-        <Button size="sm" variant={tab === "sources" ? "default" : "outline"} onClick={() => setTab("sources")} className="font-bold border-2 border-foreground">
-          🏢 Sources ({sources.length})
-        </Button>
-        <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" variant="outline" disabled={tickRunning} onClick={() => void tickAll(false)} title="Run scrape-tick now (processes due sources)">
-            {tickRunning ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
-            Run tick
-          </Button>
-          <Button size="sm" variant="default" disabled={tickRunning} onClick={() => void tickAll(true)} title="Force-scrape every active source, ignoring frequency">
-            {tickRunning ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
-            Scrape all
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => void load()}>
-            <RefreshCw size={14} className="mr-1" /> Refresh
-          </Button>
-        </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-accent" /></div>
-      ) : tab !== "sources" ? (
+      ) : tab === "queue" ? (
         <div className="grid gap-3">
-          {tabRows.length === 0 && (
+          {rows.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Nothing here. Hourly cron processes due sources, or hit "Run tick" / "Scrape now".
+              Queue is empty. Sources are scraped weekly (Sun 02:00 IST), or trigger one manually from the Sources tab.
             </p>
           )}
-          {tabRows.map((r) => {
+          {rows.map((r) => {
             const ext = r.ai_extracted || {};
-            const elColor = r.eligibility_india === "eligible" ? "default"
-              : r.eligibility_india === "ineligible" ? "destructive" : "secondary";
             return (
               <Card key={r.id} className="border-2 border-foreground p-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant={elColor as any} className="text-[10px] uppercase">{r.eligibility_india}</Badge>
-                      {r.lifecycle_status !== "active" && (
-                        <Badge variant="outline" className="text-[10px] uppercase">{r.lifecycle_status}</Badge>
-                      )}
                       <Badge variant="outline" className="text-[10px] font-mono uppercase">{r.source}</Badge>
-                      <span className="font-heading font-bold">{r.role_title || ext.role || r.source_title || "(no role)"}</span>
+                      <span className="font-heading font-bold">{ext.role || r.source_title || "(no role)"}</span>
                     </div>
                     <div className="text-sm text-muted-foreground mt-0.5">
-                      {r.source_firm}
-                      {(r.location || ext.location) ? ` · ${r.location || ext.location}` : ""}
-                      {r.role_type ? ` · ${r.role_type}` : ""}
-                      {(r.pqe_min != null || r.pqe_max != null) ? ` · ${r.pqe_min ?? "?"}–${r.pqe_max ?? "?"} PQE` : ""}
+                      {r.source_firm}{ext.location ? ` · ${ext.location}` : ""}
                     </div>
-                    {r.eligibility_reason && (
-                      <div className="text-[11px] text-muted-foreground mt-1 italic">
-                        Why: {r.eligibility_reason}
-                        {r.eligibility_confidence != null ? ` (${Math.round(Number(r.eligibility_confidence) * 100)}%)` : ""}
-                      </div>
-                    )}
                     <div className="text-[11px] font-mono text-muted-foreground mt-1">
                       Found {new Date(r.discovered_at).toLocaleString()}
-                      {r.consecutive_misses > 0 ? ` · ${r.consecutive_misses} miss(es)` : ""}
                     </div>
+                    {ext.deadline && (
+                      <div className="text-xs text-foreground mt-1">Deadline: {ext.deadline}</div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button asChild size="sm" variant="outline">
                       <a href={r.source_url} target="_blank" rel="noreferrer noopener">
                         <ExternalLink size={14} />
                       </a>
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setPreviewing(r)} title="Preview as it will look on Opportunities">
-                      <Eye size={14} className="mr-1" /> Preview
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => reject(r)}>
                       <X size={14} className="mr-1" /> Reject
@@ -322,7 +210,7 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
                       onClick={() => { setEditing(r); setOpen(true); }}
                       className="font-bold border-2 border-foreground shadow-[2px_2px_0_0_hsl(var(--foreground))]"
                     >
-                      <Check size={14} className="mr-1" /> Promote
+                      <Check size={14} className="mr-1" /> Review & promote
                     </Button>
                   </div>
                 </div>
@@ -336,17 +224,13 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
             <Card key={s.id} className="border-2 border-foreground p-3">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
-                  <div className="font-heading font-bold text-sm">{s.name || s.firm_name}</div>
+                  <div className="font-heading font-bold text-sm">{s.firm_name}</div>
                   <a href={s.url} target="_blank" rel="noreferrer noopener" className="text-xs text-muted-foreground hover:text-accent break-all">
                     {s.url}
                   </a>
                   <div className="text-[11px] font-mono text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className="text-[9px]">{s.source_type}</Badge>
-                    <Badge variant="outline" className="text-[9px]">{s.tier}</Badge>
-                    <Badge variant="outline" className="text-[9px]">{s.country}</Badge>
-                    <Badge variant="outline" className="text-[9px]">{s.scrape_frequency}</Badge>
                     <Badge variant={s.active ? "default" : "outline"} className="text-[9px]">
-                      {s.active ? s.pipeline_status : "inactive"}
+                      {s.active ? "active" : "inactive"}
                     </Badge>
                     {s.last_status && (
                       <Badge variant={s.last_status === "success" ? "secondary" : "destructive"} className="text-[9px]">
@@ -383,54 +267,7 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
         row={editing}
         onApprove={approve}
       />
-
-      <LivePreviewDialog
-        row={previewing}
-        onOpenChange={(v) => { if (!v) setPreviewing(null); }}
-        onEdit={(r) => { setPreviewing(null); setEditing(r); setOpen(true); }}
-      />
     </div>
-  );
-}
-
-function LivePreviewDialog({
-  row, onOpenChange, onEdit,
-}: {
-  row: QueueRow | null;
-  onOpenChange: (v: boolean) => void;
-  onEdit: (r: QueueRow) => void;
-}) {
-  const vacancy = useMemo(() => (row ? buildPreviewVacancy(row) : null), [row]);
-  return (
-    <Dialog open={!!row} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto border-2 border-foreground">
-        <DialogHeader>
-          <DialogTitle className="font-heading">Preview — live card</DialogTitle>
-          <DialogDescription>
-            This is exactly how the vacancy will appear on the public Opportunities page once promoted.
-            Action buttons (Apply / share) are inert here.
-          </DialogDescription>
-        </DialogHeader>
-
-        {vacancy && (
-          <div className="bg-muted/30 border-2 border-dashed border-border rounded p-4">
-            <VacancyCard vacancy={vacancy} archived={false} application={null} />
-          </div>
-        )}
-
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-          {row && (
-            <Button
-              onClick={() => onEdit(row)}
-              className="font-bold border-2 border-foreground shadow-[3px_3px_0_0_hsl(var(--foreground))]"
-            >
-              <Check size={14} className="mr-1" /> Edit & promote
-            </Button>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -449,15 +286,15 @@ function ReviewDialog({
       const e = row.ai_extracted || {};
       setFields({
         firm_name: row.source_firm ?? "",
-        role: row.role_title ?? e.role ?? row.source_title ?? "",
-        opportunity_type: row.role_type === "internship" ? "internship" : (e.opportunity_type ?? "job"),
-        application_mode: e.application_mode ?? "external_url",
+        role: e.role ?? row.source_title ?? "",
+        opportunity_type: e.opportunity_type ?? "internship",
+        application_mode: e.application_mode ?? (e.apply_url || row.source_url ? "external_url" : "email"),
         application_email: e.application_email ?? "",
         application_url: e.apply_url ?? row.source_url ?? "",
-        location: row.location ?? e.location ?? "",
-        eligibility: row.eligibility_reason ?? e.eligibility ?? "",
+        location: e.location ?? "",
+        eligibility: e.eligibility ?? "",
         stipend: e.stipend ?? "",
-        description: e.description_full ?? e.description ?? e.description_excerpt ?? "",
+        description: e.description ?? "",
         tier: "",
         practice_area: "",
       });
@@ -469,7 +306,7 @@ function ReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto border-2 border-foreground">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto border-2 border-foreground">
         <DialogHeader>
           <DialogTitle className="font-heading">Review & promote</DialogTitle>
           <DialogDescription>
@@ -552,28 +389,15 @@ function ReviewDialog({
             </div>
             <div>
               <Label>Description</Label>
-              <Textarea rows={10} value={fields.description ?? ""} onChange={(e) => u("description", e.target.value)} />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                {(fields.description ?? "").length} chars · aim for 800–2500 for a meaningful preview.
-              </p>
+              <Textarea rows={3} value={fields.description ?? ""} onChange={(e) => u("description", e.target.value)} />
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div>
-              <Label className="font-mono text-[10px] uppercase tracking-widest">Live preview</Label>
-              <div className="mt-1 bg-muted/30 border-2 border-dashed border-border rounded p-3">
-                <VacancyCard vacancy={buildPreviewVacancy(row, fields)} archived={false} application={null} />
-              </div>
+          <div>
+            <Label className="font-mono text-[10px] uppercase tracking-widest">Raw scraped markdown</Label>
+            <div className="mt-1 max-h-[60vh] overflow-y-auto border-2 border-border rounded p-3 text-xs whitespace-pre-wrap font-mono bg-muted/30">
+              {row.raw_text || "(empty)"}
             </div>
-            <details className="group">
-              <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
-                Raw scraped markdown ▾
-              </summary>
-              <div className="mt-1 max-h-[40vh] overflow-y-auto border-2 border-border rounded p-3 text-xs whitespace-pre-wrap font-mono bg-muted/30">
-                {row.raw_text || "(empty)"}
-              </div>
-            </details>
           </div>
         </div>
 

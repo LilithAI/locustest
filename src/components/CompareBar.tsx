@@ -15,7 +15,7 @@ interface Firm {
   city?: string;
   area?: string;
   tier?: string;
-  rating?: number | string | null;
+  rating?: number | string;
   phone?: string;
   email?: string;
   verified?: string;
