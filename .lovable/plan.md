@@ -1,23 +1,36 @@
-## Goal
+## Why the dashboard is empty
 
-Temporarily make `/admin/*` viewable in the preview without logging in, so editing the admin panel doesn't force re-login each time. Re-enable proper admin auth later when the user explicitly asks.
+`AdminDashboard` uses `useAdminAccess().hasScope(...)` to decide which tool tiles to render. With auth bypassed there's no logged-in user, so `scopes = []`, `isAdmin = false`, and every tile is filtered out → empty grid.
 
-## Change
+## Fix (two parts)
 
-### `src/components/admin/AdminLayout.tsx`
-- Bypass the `useAdminAccess` gate. Render `<AdminSubNav />` + `<Outlet />` immediately, without checking `ready` / `hasAnyScope`.
-- Add a clearly visible `TEMP: admin auth bypassed for preview` warning banner at the top of the layout so it's obvious this is not production-ready.
-- Leave the `useAdminAccess` import/hook removed (or commented) — keep the file otherwise intact so re-enabling is a one-line revert.
+### 1. Make `useAdminAccess` pretend to be full admin while bypass is on
 
-No other files change. RLS still protects the database, so unauthenticated visitors hitting admin pages will see empty data / API errors, not real admin powers.
+In `src/hooks/useAdminRole.ts`, add a top-level constant `ADMIN_BYPASS = true` (matches the temp banner in `AdminLayout`). When true, `useAdminAccess` returns:
+- `ready: true`
+- `isAdmin: true`
+- `scopes: [all five ADMIN_SCOPES]`
+- `hasScope: () => true`
+- `hasAnyScope: true`
 
-## Memory
+This makes every admin page render its full UI without a session. Skips the Supabase `user_roles` lookup entirely while bypass is on. RLS will still block actual writes from the unauthenticated browser, but the layout and tile listings will fill in.
 
-Save a project memory rule (`mem://constraints/admin-auth-bypass`) and add it to the Core index:
+### 2. Grant real `admin` role to `heyjeetttt@gmail.com` (via migration)
 
-> **Admin auth is temporarily bypassed in `AdminLayout.tsx` for preview convenience.** Do NOT re-enable the `useAdminAccess` gate unless the user explicitly says "re-enable admin login" / "lock admin" / similar. When they do, restore the original `ready` / `hasAnyScope` check and remove the temp banner.
+So when bypass is removed later, that account already has full access:
+
+```sql
+insert into public.user_roles (user_id, role)
+select u.id, 'admin'::public.app_role
+from auth.users u
+where lower(u.email) = 'heyjeetttt@gmail.com'
+on conflict (user_id, role) do nothing;
+```
+
+### 3. Update memory
+
+Update `mem://constraints/admin-auth-bypass` to note the `ADMIN_BYPASS` constant in `useAdminRole.ts` must also be flipped back to `false` when re-locking admin.
 
 ## Out of scope
-- No DB / RLS changes.
-- No changes to other auth flows or routes.
-- No removal of `useAdminAccess` hook itself — only its use in `AdminLayout`.
+- No changes to RLS policies — the DB still requires a real admin session for writes. If a specific admin write fails in preview, deal with it then.
+- No removal of the TEMP banner.
