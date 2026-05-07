@@ -1122,6 +1122,221 @@ export type Database = {
         }
         Relationships: []
       }
+      firm_chat_logs: {
+        Row: {
+          anon_id: string | null
+          answer: string | null
+          created_at: string
+          firm_slug: string
+          id: string
+          question: string
+          user_id: string | null
+        }
+        Insert: {
+          anon_id?: string | null
+          answer?: string | null
+          created_at?: string
+          firm_slug: string
+          id?: string
+          question: string
+          user_id?: string | null
+        }
+        Update: {
+          anon_id?: string | null
+          answer?: string | null
+          created_at?: string
+          firm_slug?: string
+          id?: string
+          question?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_chat_logs_firm_slug_fkey"
+            columns: ["firm_slug"]
+            isOneToOne: false
+            referencedRelation: "firm_profiles"
+            referencedColumns: ["firm_slug"]
+          },
+        ]
+      }
+      firm_comparable_index: {
+        Row: {
+          comparable_slug: string
+          computed_at: string
+          firm_slug: string
+          same_city: boolean
+          same_tier: boolean
+          shared_practice_areas: number
+          similarity_score: number
+        }
+        Insert: {
+          comparable_slug: string
+          computed_at?: string
+          firm_slug: string
+          same_city?: boolean
+          same_tier?: boolean
+          shared_practice_areas?: number
+          similarity_score: number
+        }
+        Update: {
+          comparable_slug?: string
+          computed_at?: string
+          firm_slug?: string
+          same_city?: boolean
+          same_tier?: boolean
+          shared_practice_areas?: number
+          similarity_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_comparable_index_comparable_slug_fkey"
+            columns: ["comparable_slug"]
+            isOneToOne: false
+            referencedRelation: "firm_profiles"
+            referencedColumns: ["firm_slug"]
+          },
+          {
+            foreignKeyName: "firm_comparable_index_firm_slug_fkey"
+            columns: ["firm_slug"]
+            isOneToOne: false
+            referencedRelation: "firm_profiles"
+            referencedColumns: ["firm_slug"]
+          },
+        ]
+      }
+      firm_news_mentions: {
+        Row: {
+          created_at: string
+          excerpt: string | null
+          firm_slug: string
+          id: string
+          mention_type: Database["public"]["Enums"]["firm_news_mention_type"]
+          published_at: string
+          source: Database["public"]["Enums"]["firm_news_source"]
+          title: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          excerpt?: string | null
+          firm_slug: string
+          id?: string
+          mention_type?: Database["public"]["Enums"]["firm_news_mention_type"]
+          published_at: string
+          source?: Database["public"]["Enums"]["firm_news_source"]
+          title: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          excerpt?: string | null
+          firm_slug?: string
+          id?: string
+          mention_type?: Database["public"]["Enums"]["firm_news_mention_type"]
+          published_at?: string
+          source?: Database["public"]["Enums"]["firm_news_source"]
+          title?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_news_mentions_firm_slug_fkey"
+            columns: ["firm_slug"]
+            isOneToOne: false
+            referencedRelation: "firm_profiles"
+            referencedColumns: ["firm_slug"]
+          },
+        ]
+      }
+      firm_offices: {
+        Row: {
+          address: string | null
+          city: string
+          created_at: string
+          email: string | null
+          firm_slug: string
+          headcount: number | null
+          id: string
+          is_hq: boolean
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city: string
+          created_at?: string
+          email?: string | null
+          firm_slug: string
+          headcount?: number | null
+          id?: string
+          is_hq?: boolean
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string
+          created_at?: string
+          email?: string | null
+          firm_slug?: string
+          headcount?: number | null
+          id?: string
+          is_hq?: boolean
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_offices_firm_slug_fkey"
+            columns: ["firm_slug"]
+            isOneToOne: false
+            referencedRelation: "firm_profiles"
+            referencedColumns: ["firm_slug"]
+          },
+        ]
+      }
+      firm_practice_areas: {
+        Row: {
+          area: string
+          created_at: string
+          depth_score: number | null
+          firm_slug: string
+          id: string
+          is_signature: boolean
+          partner_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          area: string
+          created_at?: string
+          depth_score?: number | null
+          firm_slug: string
+          id?: string
+          is_signature?: boolean
+          partner_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          created_at?: string
+          depth_score?: number | null
+          firm_slug?: string
+          id?: string
+          is_signature?: boolean
+          partner_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_practice_areas_firm_slug_fkey"
+            columns: ["firm_slug"]
+            isOneToOne: false
+            referencedRelation: "firm_profiles"
+            referencedColumns: ["firm_slug"]
+          },
+        ]
+      }
       firm_profiles: {
         Row: {
           careers_email: string | null
@@ -1132,25 +1347,39 @@ export type Database = {
           firm_slug: string
           founded_year: number | null
           general_email: string | null
+          growth_signal_90d: Database["public"]["Enums"]["firm_growth_signal"]
+          headcount_band:
+            | Database["public"]["Enums"]["firm_headcount_band"]
+            | null
+          hiring_velocity: number | null
           hq_city: string | null
+          instagram_url: string | null
+          intelligence_completeness_score: number
           last_scraped_at: string | null
           linkedin_url: string | null
           locus_take: string | null
+          news_last_updated_at: string | null
           office_addresses: Json
           office_count: number | null
           offices: string[]
+          offices_last_updated_at: string | null
+          partner_associate_ratio: number | null
           partner_count: number | null
           phone_main: string | null
           practice_areas: string[]
+          practice_areas_last_updated_at: string | null
           press_email: string | null
           scrape_status: string | null
           tagline: string | null
+          team_last_updated_at: string | null
           team_members: Json
           team_page_url: string | null
+          tier: Database["public"]["Enums"]["firm_tier"]
           total_lawyers: number | null
           twitter_url: string | null
           updated_at: string
           website_url: string | null
+          youtube_url: string | null
         }
         Insert: {
           careers_email?: string | null
@@ -1161,25 +1390,39 @@ export type Database = {
           firm_slug: string
           founded_year?: number | null
           general_email?: string | null
+          growth_signal_90d?: Database["public"]["Enums"]["firm_growth_signal"]
+          headcount_band?:
+            | Database["public"]["Enums"]["firm_headcount_band"]
+            | null
+          hiring_velocity?: number | null
           hq_city?: string | null
+          instagram_url?: string | null
+          intelligence_completeness_score?: number
           last_scraped_at?: string | null
           linkedin_url?: string | null
           locus_take?: string | null
+          news_last_updated_at?: string | null
           office_addresses?: Json
           office_count?: number | null
           offices?: string[]
+          offices_last_updated_at?: string | null
+          partner_associate_ratio?: number | null
           partner_count?: number | null
           phone_main?: string | null
           practice_areas?: string[]
+          practice_areas_last_updated_at?: string | null
           press_email?: string | null
           scrape_status?: string | null
           tagline?: string | null
+          team_last_updated_at?: string | null
           team_members?: Json
           team_page_url?: string | null
+          tier?: Database["public"]["Enums"]["firm_tier"]
           total_lawyers?: number | null
           twitter_url?: string | null
           updated_at?: string
           website_url?: string | null
+          youtube_url?: string | null
         }
         Update: {
           careers_email?: string | null
@@ -1190,27 +1433,79 @@ export type Database = {
           firm_slug?: string
           founded_year?: number | null
           general_email?: string | null
+          growth_signal_90d?: Database["public"]["Enums"]["firm_growth_signal"]
+          headcount_band?:
+            | Database["public"]["Enums"]["firm_headcount_band"]
+            | null
+          hiring_velocity?: number | null
           hq_city?: string | null
+          instagram_url?: string | null
+          intelligence_completeness_score?: number
           last_scraped_at?: string | null
           linkedin_url?: string | null
           locus_take?: string | null
+          news_last_updated_at?: string | null
           office_addresses?: Json
           office_count?: number | null
           offices?: string[]
+          offices_last_updated_at?: string | null
+          partner_associate_ratio?: number | null
           partner_count?: number | null
           phone_main?: string | null
           practice_areas?: string[]
+          practice_areas_last_updated_at?: string | null
           press_email?: string | null
           scrape_status?: string | null
           tagline?: string | null
+          team_last_updated_at?: string | null
           team_members?: Json
           team_page_url?: string | null
+          tier?: Database["public"]["Enums"]["firm_tier"]
           total_lawyers?: number | null
           twitter_url?: string | null
           updated_at?: string
           website_url?: string | null
+          youtube_url?: string | null
         }
         Relationships: []
+      }
+      firm_rankings: {
+        Row: {
+          band_or_tier: string
+          created_at: string
+          firm_slug: string
+          id: string
+          practice_area: string | null
+          ranking_source: Database["public"]["Enums"]["firm_ranking_source"]
+          year: number
+        }
+        Insert: {
+          band_or_tier: string
+          created_at?: string
+          firm_slug: string
+          id?: string
+          practice_area?: string | null
+          ranking_source: Database["public"]["Enums"]["firm_ranking_source"]
+          year: number
+        }
+        Update: {
+          band_or_tier?: string
+          created_at?: string
+          firm_slug?: string
+          id?: string
+          practice_area?: string | null
+          ranking_source?: Database["public"]["Enums"]["firm_ranking_source"]
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_rankings_firm_slug_fkey"
+            columns: ["firm_slug"]
+            isOneToOne: false
+            referencedRelation: "firm_profiles"
+            referencedColumns: ["firm_slug"]
+          },
+        ]
       }
       firm_suggestions: {
         Row: {
@@ -1262,6 +1557,129 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      firm_team_members: {
+        Row: {
+          created_at: string
+          firm_slug: string
+          first_seen_at: string
+          id: string
+          image_url: string | null
+          last_seen_at: string
+          name: string
+          practice_area: string | null
+          profile_url: string | null
+          seniority: Database["public"]["Enums"]["firm_seniority"]
+          status: Database["public"]["Enums"]["firm_team_status"]
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          firm_slug: string
+          first_seen_at?: string
+          id?: string
+          image_url?: string | null
+          last_seen_at?: string
+          name: string
+          practice_area?: string | null
+          profile_url?: string | null
+          seniority?: Database["public"]["Enums"]["firm_seniority"]
+          status?: Database["public"]["Enums"]["firm_team_status"]
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          firm_slug?: string
+          first_seen_at?: string
+          id?: string
+          image_url?: string | null
+          last_seen_at?: string
+          name?: string
+          practice_area?: string | null
+          profile_url?: string | null
+          seniority?: Database["public"]["Enums"]["firm_seniority"]
+          status?: Database["public"]["Enums"]["firm_team_status"]
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_team_members_firm_slug_fkey"
+            columns: ["firm_slug"]
+            isOneToOne: false
+            referencedRelation: "firm_profiles"
+            referencedColumns: ["firm_slug"]
+          },
+        ]
+      }
+      firm_team_movements: {
+        Row: {
+          detected_at: string
+          firm_slug: string
+          id: string
+          member_name: string
+          movement_type: Database["public"]["Enums"]["firm_movement_type"]
+          next_firm: string | null
+          prior_firm: string | null
+        }
+        Insert: {
+          detected_at?: string
+          firm_slug: string
+          id?: string
+          member_name: string
+          movement_type: Database["public"]["Enums"]["firm_movement_type"]
+          next_firm?: string | null
+          prior_firm?: string | null
+        }
+        Update: {
+          detected_at?: string
+          firm_slug?: string
+          id?: string
+          member_name?: string
+          movement_type?: Database["public"]["Enums"]["firm_movement_type"]
+          next_firm?: string | null
+          prior_firm?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_team_movements_firm_slug_fkey"
+            columns: ["firm_slug"]
+            isOneToOne: false
+            referencedRelation: "firm_profiles"
+            referencedColumns: ["firm_slug"]
+          },
+        ]
+      }
+      firm_team_snapshots: {
+        Row: {
+          firm_slug: string
+          id: string
+          members: Json
+          snapshot_at: string
+        }
+        Insert: {
+          firm_slug: string
+          id?: string
+          members?: Json
+          snapshot_at?: string
+        }
+        Update: {
+          firm_slug?: string
+          id?: string
+          members?: Json
+          snapshot_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_team_snapshots_firm_slug_fkey"
+            columns: ["firm_slug"]
+            isOneToOne: false
+            referencedRelation: "firm_profiles"
+            referencedColumns: ["firm_slug"]
+          },
+        ]
       }
       moots: {
         Row: {
@@ -1362,6 +1780,33 @@ export type Database = {
           sent_at?: string
           stream?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      pipeline_failures: {
+        Row: {
+          context: Json | null
+          created_at: string
+          error_message: string
+          id: string
+          pipeline: string
+          step: string
+        }
+        Insert: {
+          context?: Json | null
+          created_at?: string
+          error_message: string
+          id?: string
+          pipeline: string
+          step: string
+        }
+        Update: {
+          context?: Json | null
+          created_at?: string
+          error_message?: string
+          id?: string
+          pipeline?: string
+          step?: string
         }
         Relationships: []
       }
@@ -2474,6 +2919,44 @@ export type Database = {
         | "LLM"
         | "Other"
       event_mode: "offline" | "online" | "hybrid"
+      firm_growth_signal: "growing" | "stable" | "shrinking" | "unknown"
+      firm_headcount_band:
+        | "micro"
+        | "boutique_size"
+        | "mid"
+        | "large"
+        | "big_law"
+      firm_movement_type: "joined" | "departed"
+      firm_news_mention_type:
+        | "deal"
+        | "award"
+        | "lateral"
+        | "ranking"
+        | "article"
+        | "other"
+      firm_news_source:
+        | "bar_bench"
+        | "livelaw"
+        | "scc"
+        | "business_standard"
+        | "et"
+        | "other"
+      firm_ranking_source:
+        | "chambers"
+        | "legal500"
+        | "rsg"
+        | "iflr1000"
+        | "asialaw"
+      firm_seniority:
+        | "partner"
+        | "counsel"
+        | "principal_associate"
+        | "senior_associate"
+        | "associate"
+        | "of_counsel"
+        | "other"
+      firm_team_status: "active" | "departed"
+      firm_tier: "tier_1" | "tier_2" | "tier_3" | "boutique" | "untiered"
       moot_result:
         | "winner"
         | "runner_up"
@@ -2770,6 +3253,49 @@ export const Constants = {
         "Other",
       ],
       event_mode: ["offline", "online", "hybrid"],
+      firm_growth_signal: ["growing", "stable", "shrinking", "unknown"],
+      firm_headcount_band: [
+        "micro",
+        "boutique_size",
+        "mid",
+        "large",
+        "big_law",
+      ],
+      firm_movement_type: ["joined", "departed"],
+      firm_news_mention_type: [
+        "deal",
+        "award",
+        "lateral",
+        "ranking",
+        "article",
+        "other",
+      ],
+      firm_news_source: [
+        "bar_bench",
+        "livelaw",
+        "scc",
+        "business_standard",
+        "et",
+        "other",
+      ],
+      firm_ranking_source: [
+        "chambers",
+        "legal500",
+        "rsg",
+        "iflr1000",
+        "asialaw",
+      ],
+      firm_seniority: [
+        "partner",
+        "counsel",
+        "principal_associate",
+        "senior_associate",
+        "associate",
+        "of_counsel",
+        "other",
+      ],
+      firm_team_status: ["active", "departed"],
+      firm_tier: ["tier_1", "tier_2", "tier_3", "boutique", "untiered"],
       moot_result: [
         "winner",
         "runner_up",

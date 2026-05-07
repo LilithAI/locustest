@@ -104,6 +104,7 @@ const AdminDashboard = lazy(routeImports.adminDashboard as never);
 const AdminFirmSuggestions = lazy(routeImports.adminFirmSuggestions as never);
 const AdminBroadcasts = lazy(routeImports.adminBroadcasts as never);
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout"));
+const FirmProfile = lazy(() => import("./pages/FirmProfile"));
 const ApplicationTracker = lazy(routeImports.applicationTracker as never);
 const BetaChecklist = lazy(routeImports.betaChecklist as never);
 const BetaRound2 = lazy(routeImports.betaRound2 as never);
@@ -213,6 +214,7 @@ const App = () => (
                   <Route path="/app" element={<AppHome />} />
                   <Route path="/waitlist" element={<Waitlist />} />
                   <Route path="/directory" element={<Directory />} />
+                  <Route path="/directory/firms/:slug" element={<FirmProfile />} />
                   <Route path="/playbook" element={<Playbook />} />
                   <Route path="/playbook/:slug" element={<PlaybookGuide />} />
                   <Route path="/resources" element={<Resources />} />
