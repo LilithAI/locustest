@@ -205,6 +205,7 @@ const App = () => (
                   <Route path="/tour-lab" element={<TourLab />} />
                 </Route>
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/choose-username" element={<ChooseUsername />} />
                 <Route path="/beta" element={<BetaChecklist />} />
