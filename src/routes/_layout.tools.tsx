@@ -1,3 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
-import Tools from "@/pages/Tools";
-export const Route = createFileRoute("/_layout/tools")({ component: Tools });
+import { createFileRoute, Outlet } from "@tanstack/react-router";
+export const Route = createFileRoute("/_layout/tools")({
+  component: () => <Outlet />,
+});

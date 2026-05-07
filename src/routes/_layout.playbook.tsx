@@ -1,3 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
-import Playbook from "@/pages/Playbook";
-export const Route = createFileRoute("/_layout/playbook")({ component: Playbook });
+import { createFileRoute, Outlet } from "@tanstack/react-router";
+export const Route = createFileRoute("/_layout/playbook")({
+  component: () => <Outlet />,
+});
