@@ -186,24 +186,6 @@ export default function FirmProfile() {
         </Section>
       )}
 
-      {/* Offices */}
-      {firm.offices.length > 0 && (
-        <Section title="Office presence">
-          <div className="grid sm:grid-cols-2 gap-3">
-            {firm.offices.map((o) => (
-              <div key={o.id} className="border border-border/60 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold">{o.city}</h3>
-                  {o.is_hq && <span className="text-[10px] font-bold bg-accent text-accent-foreground px-1.5 py-0.5 rounded">HQ</span>}
-                </div>
-                {o.address && <p className="text-xs text-muted-foreground whitespace-pre-line line-clamp-3">{o.address}</p>}
-                {o.phone && <a href={`tel:${o.phone}`} className="text-xs text-accent block mt-1">{o.phone}</a>}
-                {o.email && <a href={`mailto:${o.email}`} className="text-xs text-accent block">{o.email}</a>}
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
 
       {/* Team */}
       {firm.team_members.length > 0 && (
