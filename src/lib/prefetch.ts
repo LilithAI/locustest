@@ -7,6 +7,7 @@ type Importer = () => Promise<unknown>;
 export const routeImports = {
   waitlist: () => import("@/pages/Waitlist"),
   directory: () => import("@/pages/Directory"),
+  firmProfile: () => import("@/pages/FirmProfile"),
   resources: () => import("@/pages/Resources"),
   playbook: () => import("@/pages/Playbook"),
   playbookGuide: () => import("@/pages/PlaybookGuide"),
@@ -43,6 +44,7 @@ export const routeImports = {
 // Map URL path prefixes → importer key. Order matters (most specific first).
 const pathToKey: Array<[RegExp, keyof typeof routeImports]> = [
   [/^\/waitlist/, "waitlist"],
+  [/^\/directory\/firm\//, "firmProfile"],
   [/^\/directory/, "directory"],
   [/^\/resources/, "resources"],
   [/^\/playbook\/.+/, "playbookGuide"],
