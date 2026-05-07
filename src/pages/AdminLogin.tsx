@@ -19,22 +19,7 @@ export default function AdminLogin() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [justSignedIn, setJustSignedIn] = useState(false);
   const navigate = useNavigate();
-  const { ready, hasAnyScope } = useAdminAccess();
-
-  // After sign-in, wait for admin scope to resolve, then route.
-  useEffect(() => {
-    if (!justSignedIn || !ready) return;
-    if (hasAnyScope) {
-      toast.success("Welcome, admin");
-      navigate("/admin");
-    } else {
-      supabase.auth.signOut();
-      toast.error("This account does not have admin access.");
-      setJustSignedIn(false);
-    }
-  }, [justSignedIn, ready, hasAnyScope, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,12 +32,37 @@ export default function AdminLogin() {
       if (rpcError) throw rpcError;
       if (!resolvedEmail) throw new Error("Username not found");
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
         email: resolvedEmail,
         password,
       });
       if (error) throw error;
-      setJustSignedIn(true);
+
+      const uid = signInData.user?.id;
+      if (!uid) throw new Error("Sign-in failed");
+
+      // Direct one-shot admin-scope check (avoids hook race).
+      const { data: roles, error: rolesErr } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", uid)
+        .in("role", [
+          "admin",
+          "opportunities_admin",
+          "waitlist_admin",
+          "bar_admin",
+          "broadcast_admin",
+        ]);
+      if (rolesErr) throw rolesErr;
+
+      if (!roles || roles.length === 0) {
+        await supabase.auth.signOut();
+        toast.error("This account does not have admin access.");
+        return;
+      }
+
+      toast.success("Welcome, admin");
+      navigate("/admin");
     } catch (err: any) {
       toast.error(err.message || "Sign-in failed");
     } finally {
@@ -104,7 +114,7 @@ export default function AdminLogin() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="admin-username">Username</Label>
+            <Label htmlFor="admin-username">Username or email</Label>
             <Input
               id="admin-username"
               type="text"
@@ -112,7 +122,7 @@ export default function AdminLogin() {
               autoFocus
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="admin"
+              placeholder="admin or admin@locus.legal"
               className="mt-1"
             />
           </div>
