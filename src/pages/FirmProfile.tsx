@@ -127,7 +127,7 @@ export default function FirmProfile() {
   if (!firm.last_scraped_at) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="mx-auto max-w-5xl px-4 py-8 md:py-12">
+        <div className="mx-auto max-w-5xl px-4 pt-24 pb-8 md:pt-28 md:pb-12">
           <Link
             to="/directory"
             className="mb-6 inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
