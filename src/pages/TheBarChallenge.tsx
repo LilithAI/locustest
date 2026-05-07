@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -58,8 +59,7 @@ export default function TheBarChallenge() {
     path: `/the-bar/challenge/${id ?? ""}`,
   });
 
-  const [authReady, setAuthReady] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
+  const { userId, ready: authReady } = useAuthSession();
   const [loading, setLoading] = useState(true);
   const [challenge, setChallenge] = useState<SafeChallenge | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -80,16 +80,6 @@ export default function TheBarChallenge() {
   const [startedAt] = useState(() => Date.now());
   const [result, setResult] = useState<ResultScreenProps | null>(null);
   const [showSignInDialog, setShowSignInDialog] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setUserId(data.session?.user?.id ?? null);
-      setAuthReady(true);
-    });
-    return () => { active = false; };
-  }, []);
 
   useEffect(() => {
     if (!authReady) return;

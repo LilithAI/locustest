@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/useAuthSession";
@@ -34,7 +34,7 @@ interface RecentAttempt {
 
 export default function TheBar() {
   const { userId, ready: authReady } = useAuthSession();
-  const location = useLocation();
+  
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
   const [recent, setRecent] = useState<RecentAttempt[]>([]);
@@ -61,9 +61,7 @@ export default function TheBar() {
       const { data, error } = await supabase.rpc("get_bar_dashboard", {
         p_user_id: userId,
       });
-      if (error || !data) {
-        return { ok: false as const, error };
-      }
+      if (error || !data) return { ok: false as const, error };
       return { ok: true as const, data };
     };
 
@@ -207,21 +205,20 @@ export default function TheBar() {
       }
     })();
     return () => { active = false; };
-  }, [authReady, userId, refetchTick, location.key]);
+  }, [authReady, userId, refetchTick]);
 
-  // Refetch dashboard whenever the tab becomes visible again or when a
-  // submitted attempt broadcasts a stats update — fixes stale "Trainee 0/0/0"
-  // state after a user finishes a challenge in another route.
+  // Refetch dashboard when a submitted attempt broadcasts a stats update or
+  // when the tab becomes visible again after a long idle. We deliberately do
+  // NOT refetch on every window focus or on every route change — that was
+  // firing redundant RPCs and making the page feel sluggish.
   useEffect(() => {
     const bump = () => setRefetchTick((t) => t + 1);
     const onVisible = () => { if (document.visibilityState === "visible") bump(); };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("bar:stats-updated", bump);
-    window.addEventListener("focus", bump);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("bar:stats-updated", bump);
-      window.removeEventListener("focus", bump);
     };
   }, []);
 
