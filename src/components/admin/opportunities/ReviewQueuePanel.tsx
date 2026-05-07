@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw, ExternalLink, Check, X, AlertTriangle, Eye } from "lucide-react";
+import VacancyCard from "@/components/vacancies/VacancyCard";
+import type { Vacancy } from "@/lib/vacancies";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
