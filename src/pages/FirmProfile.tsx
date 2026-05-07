@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Building2, MapPin, Users, ExternalLink, Mail, Phone, Globe, ArrowLeft, ShieldCheck, Sparkles, TrendingUp, Newspaper } from "lucide-react";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import AskAboutFirm from "@/components/firm/AskAboutFirm";
 import {
   getFirmIntelligenceBySlug,
   TIER_LABELS,
