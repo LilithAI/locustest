@@ -1,9 +1,18 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, MapPin, Mail, Phone, Globe, Linkedin, Twitter, Briefcase, Users, Building2, Calendar, ExternalLink, Sparkles } from "lucide-react";
-import { getFirmProfile, type FirmProfile, type TeamMember, type OfficeAddress } from "@/lib/firm-profiles";
+import { ArrowLeft, MapPin, Mail, Phone, Globe, Linkedin, Twitter, Briefcase, Users, Building2, Calendar, ExternalLink, Sparkles, TrendingUp, Network, Award, Target, Radio, Eye } from "lucide-react";
+import { getFirmProfile, computeSignals, bucketPracticeAreas, type FirmProfile, type TeamMember, type OfficeAddress, type IntelSignal } from "@/lib/firm-profiles";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import FirmIntelligenceBadge from "@/components/directory/FirmIntelligenceBadge";
+
+const SIGNAL_ICON: Record<string, typeof Target> = {
+  breadth: Target,
+  reach: Network,
+  maturity: Award,
+  hiring: TrendingUp,
+  contact: Radio,
+  visibility: Eye,
+};
 
 export default function FirmProfilePage() {
   const { slug } = useParams<{ slug: string }>();
@@ -26,31 +35,37 @@ export default function FirmProfilePage() {
   });
 
   if (loading) {
-    return <div className="container mx-auto px-4 md:px-8 py-20 text-center text-muted-foreground">Loading…</div>;
+    return <main className="min-h-screen pt-32 px-4 text-center text-muted-foreground">Loading…</main>;
   }
   if (!profile) {
     return (
-      <div className="container mx-auto px-4 md:px-8 py-20 text-center">
+      <main className="min-h-screen pt-32 px-4 text-center">
         <h1 className="font-heading text-2xl font-bold mb-2">Firm not found</h1>
         <p className="text-muted-foreground mb-6">No intelligence dossier exists for this firm.</p>
         <Link to="/directory" className="inline-flex items-center gap-2 text-accent font-bold"><ArrowLeft size={16} /> Back to directory</Link>
-      </div>
+      </main>
     );
   }
 
   const team = (profile.team_members as unknown as TeamMember[]) || [];
   const offices = (profile.office_addresses as unknown as OfficeAddress[]) || [];
   const primaryEmail = profile.careers_email || profile.general_email;
+  const signals = computeSignals(profile);
+  const buckets = bucketPracticeAreas(profile.practice_areas ?? []);
 
   return (
-    <main className="min-h-screen pb-16">
-      <div className="container mx-auto px-4 md:px-8 py-6">
-        <Link to="/directory" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-accent mb-4">
-          <ArrowLeft size={14} /> Back to directory
+    <main className="min-h-screen pb-16 pt-24 md:pt-28">
+      <div className="container mx-auto px-4 md:px-8">
+        {/* Back pill */}
+        <Link
+          to="/directory"
+          className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-card border border-border/60 hover:border-accent hover:text-accent transition-colors mb-6"
+        >
+          <ArrowLeft size={12} /> Back to directory
         </Link>
 
         {/* Header */}
-        <header className="bg-card border-2 border-foreground rounded-2xl p-6 md:p-8 shadow-[4px_4px_0_0_hsl(var(--accent))] mb-8">
+        <header className="bg-card border-2 border-foreground rounded-2xl p-6 md:p-8 shadow-[4px_4px_0_0_hsl(var(--accent))] mb-6">
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <FirmIntelligenceBadge size="md" />
             {profile.hq_city && (
@@ -78,7 +93,29 @@ export default function FirmProfilePage() {
           </div>
         </header>
 
-        {/* Stats */}
+        {/* Locus Take */}
+        {profile.locus_take && (
+          <section className="mb-6 relative overflow-hidden rounded-2xl border-2 border-accent/30 bg-gradient-to-br from-accent/5 via-card to-card p-6 md:p-7">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-7 h-7 rounded-full bg-accent text-accent-foreground flex items-center justify-center">
+                <Sparkles size={14} />
+              </div>
+              <h2 className="font-heading text-sm font-extrabold uppercase tracking-widest">Locus Take</h2>
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">AI analyst summary</span>
+            </div>
+            <div className="text-sm md:text-[15px] leading-relaxed text-foreground/90 whitespace-pre-line">{profile.locus_take}</div>
+          </section>
+        )}
+
+        {/* Intelligence Signals */}
+        <section className="mb-8">
+          <h2 className="font-heading text-xl font-bold mb-3">Intelligence signals</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {signals.map((s) => <SignalCard key={s.key} s={s} />)}
+          </div>
+        </section>
+
+        {/* At-a-glance stats */}
         <section className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
           {[
             { icon: Building2, label: "Offices", value: profile.office_count ?? profile.offices.length },
@@ -95,23 +132,33 @@ export default function FirmProfilePage() {
           ))}
         </section>
 
+        {/* Practice focus (bucketed) */}
+        {buckets.length > 0 && (
+          <section className="mb-8">
+            <h2 className="font-heading text-xl font-bold mb-3">Practice focus</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {buckets.map((b) => (
+                <div key={b.bucket} className="bg-card border border-border/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-bold text-sm">{b.bucket}</div>
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{b.items.length} {b.items.length === 1 ? "area" : "areas"}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {b.items.map((it) => (
+                      <span key={it} className="text-[11px] font-medium bg-accent/10 text-accent border border-accent/20 px-2 py-0.5 rounded-full">{it}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* About */}
         {profile.description && (
           <section className="mb-8">
             <h2 className="font-heading text-xl font-bold mb-3">About</h2>
             <p className="text-sm text-foreground/90 leading-relaxed bg-card/50 border border-border/50 rounded-xl p-5">{profile.description}</p>
-          </section>
-        )}
-
-        {/* Practice areas */}
-        {profile.practice_areas.length > 0 && (
-          <section className="mb-8">
-            <h2 className="font-heading text-xl font-bold mb-3">Practice areas <span className="text-sm text-muted-foreground font-normal">({profile.practice_areas.length})</span></h2>
-            <div className="flex flex-wrap gap-2">
-              {[...profile.practice_areas].sort().map((p) => (
-                <span key={p} className="text-xs font-medium bg-accent/10 text-accent border border-accent/20 px-3 py-1.5 rounded-full">{p}</span>
-              ))}
-            </div>
           </section>
         )}
 
@@ -141,10 +188,10 @@ export default function FirmProfilePage() {
           </section>
         )}
 
-        {/* People */}
-        <section className="mb-8">
-          <h2 className="font-heading text-xl font-bold mb-3">People</h2>
-          {team.length > 0 ? (
+        {/* People — only if data exists */}
+        {team.length > 0 && (
+          <section className="mb-8">
+            <h2 className="font-heading text-xl font-bold mb-3">People</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {team.map((m, i) => (
                 <div key={i} className="bg-card border border-border/50 rounded-xl p-4">
@@ -154,14 +201,8 @@ export default function FirmProfilePage() {
                 </div>
               ))}
             </div>
-          ) : profile.team_page_url ? (
-            <a href={profile.team_page_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-accent font-medium hover:underline">
-              View team on firm site <ExternalLink size={12} />
-            </a>
-          ) : (
-            <p className="text-sm text-muted-foreground italic">Team data unavailable for this firm.</p>
-          )}
-        </section>
+          </section>
+        )}
 
         {/* Contact */}
         <section>
@@ -178,6 +219,26 @@ export default function FirmProfilePage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function SignalCard({ s }: { s: IntelSignal }) {
+  const Icon = SIGNAL_ICON[s.key] ?? Target;
+  const toneClass =
+    s.tone === "positive"
+      ? "text-accent border-accent/30 bg-accent/5"
+      : s.tone === "muted"
+      ? "text-muted-foreground border-border/40 bg-card"
+      : "text-foreground border-border/50 bg-card";
+  return (
+    <div className={`rounded-xl border p-4 ${toneClass}`}>
+      <div className="flex items-center gap-2 mb-2">
+        <Icon size={14} />
+        <span className="text-[10px] uppercase tracking-wider font-bold">{s.label}</span>
+      </div>
+      <div className="font-heading text-lg font-extrabold leading-tight text-foreground">{s.value}</div>
+      <div className="text-[11px] text-muted-foreground mt-1">{s.detail}</div>
+    </div>
   );
 }
 
