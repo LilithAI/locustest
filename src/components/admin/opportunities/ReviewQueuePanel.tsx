@@ -617,8 +617,21 @@ function ReviewDialog({
               <Input value={fields.practice_area ?? ""} onChange={(e) => u("practice_area", e.target.value)} />
             </div>
             <div>
-              <Label>Description</Label>
-              <Textarea rows={3} value={fields.description ?? ""} onChange={(e) => u("description", e.target.value)} />
+              <div className="flex items-center justify-between mb-1">
+                <Label>Description</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={generating}
+                  onClick={generateDescription}
+                  className="h-7 text-xs"
+                >
+                  {generating ? <Loader2 size={12} className="animate-spin mr-1" /> : "✨ "}
+                  {generating ? "Generating…" : "Generate (~1000 words)"}
+                </Button>
+              </div>
+              <Textarea rows={14} value={fields.description ?? ""} onChange={(e) => u("description", e.target.value)} />
             </div>
           </div>
 
