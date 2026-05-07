@@ -74,6 +74,13 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
   const [scrapingId, setScrapingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<QueueRow | null>(null);
+  const [previewing, setPreviewing] = useState<QueueRow | null>(null);
+  const [indiaOnly, setIndiaOnly] = useState(true);
+
+  const filteredRows = useMemo(
+    () => (indiaOnly ? rows.filter(isIndiaRow) : rows),
+    [rows, indiaOnly],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
