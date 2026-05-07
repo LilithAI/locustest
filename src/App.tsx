@@ -117,6 +117,7 @@ const AdminOpportunities = lazy(() => import("./pages/AdminOpportunities"));
 const AdminAdmins = lazy(() => import("./pages/AdminAdmins"));
 const AdminInsights = lazy(() => import("./pages/AdminInsights"));
 const AdminFirmIntelligence = lazy(() => import("./pages/AdminFirmIntelligence"));
+const AdminFirmEdit = lazy(() => import("./pages/AdminFirmEdit"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
