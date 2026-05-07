@@ -95,9 +95,27 @@ serve(async (req) => {
       });
     }
 
-    const ext = body.ai_extracted ?? {};
+    const ext = (body.ai_extracted ?? {}) as Record<string, unknown>;
     const raw = (body.raw_text ?? "").slice(0, 25000);
+    const pick = (...keys: string[]) => {
+      for (const k of keys) {
+        const v = ext[k];
+        if (v != null && String(v).trim() !== "") return String(v);
+      }
+      return "";
+    };
+    const essentials = {
+      firm: body.firm_name || pick("firm_name", "firm", "organization", "company"),
+      role: body.role || pick("role", "title", "position"),
+      location: pick("location", "city", "work_location"),
+      eligibility: pick("eligibility", "year", "year_of_study", "qualification", "degree"),
+      stipend: pick("stipend", "compensation", "salary", "pay"),
+      duration: pick("duration", "tenure", "length"),
+      deadline: pick("deadline", "apply_by", "last_date", "application_deadline"),
+      how_to_apply: pick("application_method", "how_to_apply", "apply_via", "application_url", "apply_url", "email", "application_email"),
+    };
     const userContent =
+      `ESSENTIAL FACTS (must appear in Quick facts block):\n${JSON.stringify(essentials, null, 2)}\n\n` +
       `FIRM: ${body.firm_name ?? "(unknown)"}\n` +
       `ROLE: ${body.role ?? "(unknown)"}\n\n` +
       `STRUCTURED FIELDS (JSON):\n${JSON.stringify(ext, null, 2)}\n\n` +
