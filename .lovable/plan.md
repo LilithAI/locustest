@@ -1,38 +1,27 @@
-## Problem
+## Goal
+Ensure the "Generate description" button always produces a description that prominently includes the 5 essential facts a candidate needs, on top of the longer narrative.
 
-In Review & promote, `description` is just a fragment from extraction (sometimes empty, like in your screenshot). You want a long, well-written description that pulls in everything: role, requirements, qualifications, eligibility, responsibilities, practice area, stipend, etc. — all from the data we already have (`ai_extracted` + `raw_text`).
+## Required facts (must always appear)
+1. Firm / organization name
+2. Role + location
+3. Eligibility (year / qualification)
+4. Stipend + duration
+5. Application deadline + how to apply
 
-## Solution
+## Changes
 
-Add a "Generate description" button next to the Description field in the Review & promote dialog.
+### 1. `supabase/functions/generate-vacancy-description/index.ts`
+Update `SYSTEM_PROMPT` so the model is required to start every description with a fixed **"## Quick facts"** block listing the 5 fields above as a bullet list, before the long-form sections. Rules:
+- Each of the 5 bullets must always be present, in this exact order, with bold labels: `**Firm:**`, `**Role & location:**`, `**Eligibility:**`, `**Stipend & duration:**`, `**Deadline & how to apply:**`.
+- If a value is genuinely missing from the source, write `Not specified` for that bullet — never invent.
+- Then continue with the existing long-form sections (Role overview, Responsibilities, etc.).
+- Keep overall length target ~800–1000 words; Quick facts block doesn't count toward narrative quality.
 
-### Behaviour
+Also strengthen the user message so the model sees the 5 fields explicitly pulled from `ai_extracted` (firm_name, role, location, eligibility, qualification, stipend, duration, deadline, application_method/url) labeled clearly, so it can't miss them even if the JSON is messy.
 
-- Clicking it sends `ai_extracted` (the structured fields) + `raw_text` (the scraped markdown, truncated to ~25k chars) + the firm/role context to a new edge function `generate-vacancy-description`.
-- Edge function calls Lovable AI (`google/gemini-2.5-pro`) with a prompt that instructs it to write ~800–1000 words covering: role overview, key responsibilities, eligibility & qualifications, experience required, practice area context, location, stipend/compensation, application process, deadline, and any task brief — formatted in clean Markdown sections (no invented facts; only synthesise what's in the inputs).
-- Response replaces the Description textarea content. Loading spinner on the button while generating.
-
-### UI changes (`ReviewQueuePanel.tsx`)
-
-- Description label row: add a small "✨ Generate (1000 words)" button on the right.
-- Make the Description Textarea taller (rows=3 → rows=14) so the long output is readable.
-- Show a toast on success/error.
-- Same button also added to PreviewDialog? **No** — preview is read-only; generation lives in Review & promote where the admin saves it.
-
-### New edge function `supabase/functions/generate-vacancy-description/index.ts`
-
-- POST `{ ai_extracted, raw_text, firm_name, role }` → returns `{ description: string }`.
-- Auth: requires `opportunities_admin` scope (same pattern as scrape function).
-- Calls Lovable AI Gateway, no streaming (single shot).
-- Handles 402 / 429 with friendly errors.
-- `verify_jwt = true` (default).
+### 2. No UI / DB changes
+`ReviewQueuePanel.tsx` already shows the returned markdown in the description textarea — the new Quick facts block will simply appear at the top. No code change needed there.
 
 ## Out of scope
-
-- No DB changes — generated text just lives in the form until admin clicks Promote.
-- No auto-generation on scrape (kept manual so admin reviews + triggers).
-- No regeneration history / versions.
-
-## Question
-
-Confirm word count target: **1000 words** as you said, or should it adapt (e.g. 400–1000 depending on how much info exists, so sparse listings don't get padded with fluff)?
+- Auto-filling the structured form fields (firm/role/deadline inputs) from generation — only the description body is updated. Can be a follow-up if you want.
+- Regeneration history, streaming.

@@ -10,22 +10,33 @@ const corsHeaders = {
 
 const SYSTEM_PROMPT = `You write polished, well-structured legal opportunity descriptions for a public job board.
 
-REQUIREMENTS:
-- Length: aim for ~800-1000 words. If the source has limited information, write as much as is honestly supportable (minimum 300) — do NOT pad with generic filler or invented facts.
-- Synthesize ONLY from the provided structured fields and raw scraped markdown. Do not invent firm history, perks, or requirements that are not present.
-- Use clean Markdown with these section headings (skip any section that has no source info):
-  ## Role overview
-  ## Key responsibilities
-  ## Eligibility & qualifications
-  ## Experience required
-  ## Practice area
-  ## Location & work setup
-  ## Stipend / compensation
-  ## Application process
-  ## Deadline
-  ## Assessment / task brief
-- Write in clear professional prose. Use bullet points for lists of responsibilities or requirements.
-- Do not include the firm name as a heading — that's already in the card.
+MANDATORY OUTPUT STRUCTURE — follow exactly:
+
+1) Start the output with a "## Quick facts" section containing EXACTLY these 5 bullets in this order. Every bullet must always be present. If the source genuinely does not contain a value, write "Not specified" for that bullet — never invent.
+
+## Quick facts
+- **Firm:** <firm / organization name>
+- **Role & location:** <role title> — <city / remote / hybrid>
+- **Eligibility:** <year of study / degree / qualification required>
+- **Stipend & duration:** <stipend amount or "Unpaid"> · <duration, e.g. 6 weeks>
+- **Deadline & how to apply:** <deadline date> — <how to apply: email / form URL / portal>
+
+2) Then write the long-form description (~800–1000 words; minimum 300 if source is sparse — never pad with filler or invented facts). Use these section headings, skipping any with no source info:
+   ## Role overview
+   ## Key responsibilities
+   ## Eligibility & qualifications
+   ## Experience required
+   ## Practice area
+   ## Location & work setup
+   ## Stipend / compensation
+   ## Application process
+   ## Deadline
+   ## Assessment / task brief
+
+RULES:
+- Synthesize ONLY from the provided structured fields and raw scraped markdown. Do not invent firm history, perks, or requirements.
+- Use bullet points for lists of responsibilities or requirements.
+- Do not include the firm name as a heading — that's in the card.
 - Do not start with "About [Firm]" boilerplate.
 `;
 
