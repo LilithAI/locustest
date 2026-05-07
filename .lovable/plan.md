@@ -1,38 +1,32 @@
-## Scope
+## Goal
 
-Import all **26 opportunities** from your three uploaded HTML snapshots into the live database:
+On `/opportunities` vacancy cards, when a vacancy has both an application email and an external portal URL, show **two buttons** side-by-side in the footer:
 
-- **20 vacancies** (career tab) → `public.vacancies`
-- **3 CFPs** (academic tab) → `public.cfps`
-- **3 competitions** (contests tab) → `public.competitions`
-- 0 moots in the snapshot — nothing to insert there.
+1. **Draft application** — opens the existing draft-email flow (current `onApply` behavior).
+2. **Apply on portal** — opens `vacancy.application_url` in a new tab directly (no intermediate modal).
 
-The current DB has 0 rows in all four tables, so this is a clean import (no dedupe needed).
+Currently the card shows only ONE button: either "Draft application" (email mode) OR "Apply on portal" (external_url mode), based on `application_mode`. The user wants both available whenever a portal URL exists.
 
-## Steps
+## Changes (frontend only)
 
-1. **Parse the three HTML files** with a small Python script — one record per card. Extract firm/title, type, location, stipend/fee, eligibility, description, deadline countdowns, source credit, and visible "task required" / email hints.
-2. **Derive timestamps**:
-   - `posted_at` from "Listed today / 1d ago / …" (today − N days).
-   - `expires_at` from the visible countdown ("4d 05h left" → now + delta) or from explicit deadlines in the description ("May 8, 2026", "20.05.2026") when stronger.
-3. **Map application contacts for vacancies**:
-   - Visible emails in the description (Panda Law, Accio Legal, Sarvada Legal, K Vinod Chandran chamber etc.) → `application_mode='email'`.
-   - Cards labeled "Portal" → `application_mode='external_url'` with the firm's careers page or, if not visible, a Lawctopus/source-credit URL.
-   - Per your earlier preference: **option (a)** — if neither a real email nor a real URL is available, **skip the row** (the trigger rejects bad emails/URLs). I'll list any skipped at the end.
-4. **Map enums** to existing types:
-   - `tier`: from visible badge ("Other"→`other`, "Boutique"→`boutique`); else null.
-   - `practice_area`: from "Practice" detail ("Disputes/Litigation", "Corporate", "General"); else null.
-   - `opportunity_type`: `internship` | `job`.
-5. **CFPs** → `cfps`: `publication_name`, `publication_type='journal'`, `peer_reviewed=true` (all three say peer-reviewed), `submission_deadline` from countdown, `expires_at`=submission_deadline, `source_credit='NLSIU'`.
-6. **Competitions** → `competitions`: `title`, `organiser`, `category='other'` (or `essay` for the IDIA one), `mode` (online/hybrid/offline), `fee`, `prize_or_stipend`, `deadline` from countdown, `expires_at`=deadline, `source_credit='Lawctopus'`.
-7. **`created_by`** for every row = `22c16a7e-93b3-44f1-b1fc-2199a1937528` (the existing admin).
-8. **Insert** with `supabase--insert` in three statements (vacancies, cfps, competitions). The validation triggers will enforce email/URL formats and `expires_at > posted_at`.
-9. **Report back**: counts inserted per table and any rows I had to skip (with reason).
+### `src/components/vacancies/VacancyCard.tsx`
 
-## Out of scope
+In the idle-state footer block (lines ~305–325):
 
-- No schema/RLS changes (tables already exist).
-- No frontend changes — once inserted, they'll show on `/opportunities` automatically.
-- No scraper or admin UI work.
+- Always render **Draft application** button when `onApply` is provided (calls `onApply(vacancy)` as today).
+- Additionally render **Apply on portal** as an `<a target="_blank" rel="noopener noreferrer">` styled like a button, whenever `vacancy.application_url` is present. Clicking fires `track("vacancy_apply_clicked", { vacancy_id, mode: "portal" })` and navigates directly — no modal.
+- Wrap the two buttons in a `flex gap-2 flex-wrap` container so they sit together on the right side of the footer.
+- Keep the existing "Applied" / "Follow up" / "Followed up" / "Draft follow-up" states unchanged (single-button as today). Portal button only shows in `idle` state.
+- Also keep the small "Portal" pill in the header so users still see the indicator.
 
-Approve this and I'll run it.
+### Edge cases
+
+- Vacancy has only email (no `application_url`): show only **Draft application** (unchanged behavior).
+- Vacancy has only portal URL (no email, `application_mode === "external_url"`): show only **Apply on portal** (matches today, but as a real link instead of going through `onApply`). Keep `onApply` path as fallback if no `application_url`.
+- Vacancy is closed/archived: no buttons (unchanged).
+
+### Out of scope
+
+- No DB changes, no schema changes.
+- No changes to other opportunity streams (CFP/moot/competition) — vacancy cards only.
+- No changes to the draft-email dialog.
