@@ -39,16 +39,45 @@ export async function getFirmProfile(slug: string): Promise<FirmProfile | null> 
 export interface TeamMember {
   name?: string;
   role?: string;
+  designation?: string;
   bio?: string;
   email?: string;
   image?: string;
   url?: string;
+  profile_url?: string;
+  practice_area?: string;
 }
 
 export interface OfficeAddress {
   city?: string;
   address?: string;
   phone?: string;
+}
+
+const TEAM_NAME_BLOCKLIST = new Set([
+  "people","management board","practice areas","sectors","practice area heads",
+  "our people","team","about","contact","home","services","careers","news",
+  "insights","publications","offices","locations","sector","sectors & industries",
+]);
+
+export function normalizeTeam(raw: unknown): TeamMember[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: TeamMember[] = [];
+  for (const r of raw as TeamMember[]) {
+    const name = (r?.name ?? "").trim();
+    if (!name) continue;
+    if (name.length < 2 || name.length > 60) continue;
+    if (/[0-9\n]/.test(name)) continue;
+    if (TEAM_NAME_BLOCKLIST.has(name.toLowerCase())) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    let role = (r.role ?? r.designation ?? "").trim();
+    if (role.length > 80) role = "";
+    out.push({ ...r, name, role: role || undefined });
+  }
+  return out;
 }
 
 // ---------------- Intelligence helpers ----------------
