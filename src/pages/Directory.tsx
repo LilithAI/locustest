@@ -148,9 +148,15 @@ export default function Directory() {
       if (area && f.area !== area) return false;
       if (tier && f.tier !== tier) return false;
       if (type && getType(f) !== type) return false;
+      if (verifiedOnly || hiringOnly) {
+        if (!intelIndex) return false;
+        const intel = getIntelligenceForName(intelIndex, f.name);
+        if (verifiedOnly && !intel?.chips.verified) return false;
+        if (hiringOnly && !intel?.chips.hiring_now) return false;
+      }
       return true;
     });
-  }, [search, city, area, tier, type, channel]);
+  }, [search, city, area, tier, type, channel, verifiedOnly, hiringOnly, intelIndex]);
 
   // Sorted — tier is the primary key; verified only floats within the same tier
   const sorted = useMemo(() => {
