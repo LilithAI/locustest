@@ -126,6 +126,37 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
     }
   };
 
+  const [scrapingAll, setScrapingAll] = useState(false);
+  const [scrapeAllProgress, setScrapeAllProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const scrapeAll = async () => {
+    const active = sources.filter((s) => s.active);
+    if (active.length === 0) { toast.error("No active sources"); return; }
+    if (!confirm(`Scrape all ${active.length} active sources? This may take several minutes.`)) return;
+    setScrapingAll(true);
+    setScrapeAllProgress({ done: 0, total: active.length });
+    let inserted = 0, dupes = 0, failed = 0;
+    for (let i = 0; i < active.length; i++) {
+      const s = active[i];
+      setScrapingId(s.id);
+      try {
+        const { data, error } = await supabase.functions.invoke("scrape-firm-careers", {
+          body: { source_id: s.id },
+        });
+        if (error) throw error;
+        const d = data as { ok?: boolean; inserted?: number; duplicates?: number; error?: string };
+        if (d.ok === false || d.error) failed++;
+        else { inserted += d.inserted ?? 0; dupes += d.duplicates ?? 0; }
+      } catch { failed++; }
+      setScrapeAllProgress({ done: i + 1, total: active.length });
+    }
+    setScrapingId(null);
+    setScrapingAll(false);
+    setScrapeAllProgress(null);
+    toast.success(`Scrape all done — ${inserted} new, ${dupes} dupes, ${failed} failed`);
+    await load();
+  };
+
   const reject = async (row: QueueRow) => {
     const { error } = await supabase
       .from("vacancy_review_queue")
@@ -274,6 +305,22 @@ export default function ReviewQueuePanel({ userId }: { userId: string }) {
         </div>
       ) : (
         <div className="grid gap-2">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
+              {sources.filter((s) => s.active).length} active / {sources.length} total
+              {scrapeAllProgress && ` · ${scrapeAllProgress.done}/${scrapeAllProgress.total}`}
+            </div>
+            <Button
+              size="sm"
+              variant="default"
+              disabled={scrapingAll}
+              onClick={scrapeAll}
+              className="font-bold border-2 border-foreground shadow-[2px_2px_0_0_hsl(var(--foreground))]"
+            >
+              {scrapingAll ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              {scrapingAll ? `Scraping ${scrapeAllProgress?.done}/${scrapeAllProgress?.total}` : "Scrape all active"}
+            </Button>
+          </div>
           {sources.map((s) => (
             <Card key={s.id} className="border-2 border-foreground p-3">
               <div className="flex items-start justify-between gap-3 flex-wrap">
