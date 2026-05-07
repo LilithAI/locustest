@@ -516,6 +516,15 @@ export default function Directory() {
                     <div className="mb-3 pr-10">
                       <h3 className="font-heading text-base font-bold leading-tight group-hover:text-accent transition-colors line-clamp-2">
                         {f.name}
+                        {intel && (
+                          <span
+                            className="ml-1.5 text-accent align-middle"
+                            title="Firm Intelligence available"
+                            aria-label="Firm Intelligence available"
+                          >
+                            ✦
+                          </span>
+                        )}
                       </h3>
                     </div>
 

@@ -194,7 +194,7 @@ export default function FirmDrawer({ firm, type, open, onOpenChange }: FirmDrawe
                 className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-foreground text-background font-bold text-sm hover:opacity-90 transition-opacity border-2 border-foreground shadow-[3px_3px_0_0_hsl(var(--accent))]"
               >
                 <Sparkles size={14} />
-                Open full firm profile →
+                Open Firm Intelligence →
               </Link>
             )}
             {draftTarget && (
