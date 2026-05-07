@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
-import { Star, MapPin, Phone, Mail, ExternalLink, Sparkles, ShieldCheck, Eye, MessageSquarePlus } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Star, MapPin, Phone, Mail, ExternalLink, Sparkles, ShieldCheck, Eye, MessageSquarePlus, ArrowRight } from "lucide-react";
 import { ShareIconButton } from "@/components/ShareIconButton";
 import { toast } from "sonner";
+import { getFirmIntelligenceSlugs } from "@/lib/firm-profiles";
+import FirmIntelligenceBadge from "@/components/directory/FirmIntelligenceBadge";
 import {
   Sheet,
   SheetContent,
