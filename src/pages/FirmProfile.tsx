@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Building2 } from "lucide-react";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { getFirmIntelligenceBySlug, type FirmIntelligenceFull } from "@/lib/firmIntelligence";
+import { RefreshIntelligenceButton } from "@/components/firm/RefreshIntelligenceButton";
 
 export default function FirmProfile() {
   const { slug } = useParams<{ slug: string }>();
@@ -53,6 +54,15 @@ export default function FirmProfile() {
 
       <h1 className="font-heading text-3xl md:text-5xl font-bold mb-4 leading-tight">{firm.firm_name}</h1>
       <p className="text-muted-foreground">Firm Intelligence page — UI coming next.</p>
+
+      <RefreshIntelligenceButton
+        firmSlug={firm.firm_slug}
+        onSuccess={() => {
+          if (slug) {
+            getFirmIntelligenceBySlug(slug).then(setFirm);
+          }
+        }}
+      />
     </div>
   );
 }
