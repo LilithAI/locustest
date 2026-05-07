@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BetaBanner from "@/components/BetaBanner";
 import AppTour from "@/components/tour/AppTour";
+import RouteSkeleton from "@/components/RouteSkeleton";
 import { useTrackPageViews } from "@/hooks/useTrackPageViews";
 
 const MobileBottomDock = lazy(() => import("@/components/MobileBottomDock"));
@@ -16,7 +17,9 @@ function LayoutRoute() {
       <div className="min-h-screen">
         <BetaBanner />
         <Navbar />
-        <Outlet />
+        <Suspense fallback={<RouteSkeleton />}>
+          <Outlet />
+        </Suspense>
         <Footer />
         <Suspense fallback={null}>
           <MobileBottomDock />
