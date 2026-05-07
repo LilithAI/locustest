@@ -14,6 +14,30 @@ if (typeof window !== "undefined") {
     window.location.replace(target);
   }
 
+  // After the Lovable OAuth broker drops us back on the redirect_uri (root
+  // origin), forward to the page the user was trying to reach before sign-in.
+  // The broker reloads the browser, so the navigate() call inside Auth.tsx
+  // never gets to run — this rescuer reads the stashed path and bounces.
+  try {
+    const stashed = sessionStorage.getItem("post_oauth_redirect");
+    if (
+      stashed &&
+      stashed.startsWith("/") &&
+      !stashed.startsWith("//") &&
+      window.location.pathname !== stashed &&
+      !window.location.hash.includes("access_token=")
+    ) {
+      void supabase.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          sessionStorage.removeItem("post_oauth_redirect");
+          window.location.replace(stashed);
+        }
+      });
+    }
+  } catch {
+    // sessionStorage can throw in private mode — ignore.
+  }
+
   // Rescue legacy Supabase implicit-flow OAuth redirects that land on an
   // arbitrary path with `#access_token=...` in the hash. Without this, an old
   // build (or a cached redirect URL) would render the 404 page while leaking
