@@ -46,12 +46,25 @@ interface FirmDrawerProps {
 export default function FirmDrawer({ firm, type, open, onOpenChange }: FirmDrawerProps) {
   const [draftOpen, setDraftOpen] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const [hasIntelligence, setHasIntelligence] = useState(false);
 
   useEffect(() => {
     if (open && firm) {
       void track("firm_view", { name: firm.name, type, city: firm.city ?? null });
     }
   }, [open, firm, type]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (open && firm?.firm_slug) {
+      getFirmIntelligenceSlugs().then((set) => {
+        if (!cancelled) setHasIntelligence(set.has(firm.firm_slug!));
+      });
+    } else {
+      setHasIntelligence(false);
+    }
+    return () => { cancelled = true; };
+  }, [open, firm]);
 
   if (!firm) return null;
 
