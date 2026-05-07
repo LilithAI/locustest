@@ -9,6 +9,7 @@ import {
   Megaphone,
   MessageSquarePlus,
   ShieldCheck,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { useAdminAccess, type AdminScope } from "@/hooks/useAdminRole";
