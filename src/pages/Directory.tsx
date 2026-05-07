@@ -432,6 +432,25 @@ export default function Directory() {
         activeCount={activeFilters.length}
       />
 
+      {/* Intelligence quick-toggles */}
+      <section className="container mx-auto px-4 md:px-8 -mt-2 mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mr-1">Intelligence:</span>
+        <button
+          type="button"
+          onClick={() => setVerifiedOnly((v) => !v)}
+          className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border-2 transition-all ${verifiedOnly ? "bg-accent text-accent-foreground border-foreground" : "bg-card border-border/60 text-muted-foreground hover:border-accent"}`}
+        >
+          <ShieldCheck size={11} /> Verified only
+        </button>
+        <button
+          type="button"
+          onClick={() => setHiringOnly((v) => !v)}
+          className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border-2 transition-all ${hiringOnly ? "bg-foreground text-background border-foreground" : "bg-card border-border/60 text-muted-foreground hover:border-foreground"}`}
+        >
+          <Sparkles size={11} /> Hiring now
+        </button>
+      </section>
+
       {/* Results count */}
       <section className="container mx-auto px-4 md:px-8 mb-4">
         <p className="text-sm text-muted-foreground">
