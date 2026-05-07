@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Building2 } from "lucide-react";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { getFirmIntelligenceBySlug, type FirmIntelligenceFull } from "@/lib/firmIntelligence";
+import { RefreshIntelligenceButton } from "@/components/firm/RefreshIntelligenceButton";
 
 export default function FirmProfile() {
   const { slug } = useParams<{ slug: string }>();
