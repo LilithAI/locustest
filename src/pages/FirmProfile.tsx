@@ -245,6 +245,9 @@ export default function FirmProfile() {
         </Section>
       )}
 
+      {/* Ask about this firm */}
+      <AskAboutFirm slug={firm.firm_slug} firmName={firm.firm_name} />
+
       {/* Contact */}
       <Section title="Contact">
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
@@ -256,6 +259,28 @@ export default function FirmProfile() {
           {firm.careers_url && <ContactLine icon={<ExternalLink size={14} />} href={firm.careers_url} label="Careers page" external />}
         </div>
       </Section>
+
+      {/* JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "LegalService",
+            name: firm.firm_name,
+            description: firm.tagline ?? firm.description ?? undefined,
+            url: firm.website_url ?? `https://locus.legal/directory/firms/${firm.firm_slug}`,
+            email: firm.general_email ?? undefined,
+            telephone: firm.phone_main ?? undefined,
+            areaServed: firm.offices.map((o) => o.city),
+            knowsAbout: firm.practice_areas.map((p) => p.area),
+            address: firm.offices[0]?.address
+              ? { "@type": "PostalAddress", addressLocality: firm.offices[0].city, streetAddress: firm.offices[0].address }
+              : undefined,
+            foundingDate: firm.founded_year ? String(firm.founded_year) : undefined,
+          }),
+        }}
+      />
     </div>
   );
 }
