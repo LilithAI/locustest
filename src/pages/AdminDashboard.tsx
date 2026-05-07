@@ -10,6 +10,7 @@ import {
   Megaphone,
   ShieldCheck,
   BarChart3,
+  Building2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageMeta } from "@/hooks/usePageMeta";
