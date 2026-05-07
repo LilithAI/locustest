@@ -118,6 +118,17 @@ export default function FirmProfile() {
         </div>
       </header>
 
+      {/* Locus Take — analyst summary */}
+      {(firm.locus_take || firm.description) && (
+        <section className="mb-10 border-l-4 border-accent bg-accent/5 rounded-r-xl px-5 py-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles size={14} className="text-accent" />
+            <span className="text-xs font-bold uppercase tracking-wider text-accent">Locus Take</span>
+          </div>
+          <p className="text-base leading-relaxed text-foreground">{firm.locus_take ?? firm.description}</p>
+        </section>
+      )}
+
       {/* Confidence strip */}
       {lowConfidence && (
         <div className="mb-8 border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 rounded-xl px-4 py-3 text-sm">
@@ -226,7 +237,7 @@ export default function FirmProfile() {
       )}
 
       {/* News */}
-      {firm.news.length > 0 ? (
+      {firm.news.length > 0 && (
         <Section title="Recent activity">
           <ul className="space-y-3">
             {firm.news.map((n, i) => (
@@ -240,12 +251,6 @@ export default function FirmProfile() {
               </li>
             ))}
           </ul>
-        </Section>
-      ) : (
-        <Section title="Recent activity">
-          <p className="text-sm text-muted-foreground italic flex items-center gap-2">
-            <Newspaper size={14} /> No recent activity tracked yet — news ingestion launches soon.
-          </p>
         </Section>
       )}
 
