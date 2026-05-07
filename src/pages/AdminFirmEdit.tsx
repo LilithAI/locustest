@@ -174,8 +174,8 @@ export default function AdminFirmEdit() {
     setExtracted((prev) => prev ? { ...prev, [k]: v } : prev);
   }
 
-  if (roleLoading) return <div className="p-8 text-sm text-muted-foreground">Loading…</div>;
-  if (!allowed) return <div className="p-8 text-sm text-destructive">Admin only.</div>;
+  if (!ready) return <div className="p-8 text-sm text-muted-foreground">Loading…</div>;
+  if (!isAdmin) return <div className="p-8 text-sm text-destructive">Admin only.</div>;
 
   const fmt = (v: unknown) => v == null || v === "" ? "—" : String(v);
 
