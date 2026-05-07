@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, MapPin, Mail, Phone, Globe, Linkedin, Twitter, Briefcase, Users, Building2, Calendar, ExternalLink, Sparkles, TrendingUp, Network, Award, Target, Radio, Eye } from "lucide-react";
-import { getFirmProfile, computeSignals, bucketPracticeAreas, type FirmProfile, type TeamMember, type OfficeAddress, type IntelSignal } from "@/lib/firm-profiles";
+import { getFirmProfile, computeSignals, bucketPracticeAreas, normalizeTeam, type FirmProfile, type OfficeAddress, type IntelSignal } from "@/lib/firm-profiles";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import FirmIntelligenceBadge from "@/components/directory/FirmIntelligenceBadge";
 
