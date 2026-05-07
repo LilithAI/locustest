@@ -437,6 +437,8 @@ function ReviewDialog({
   useEffect(() => {
     if (row) {
       const e = row.ai_extracted || {};
+      const elig = [e.eligibility, e.qualifications, e.experience_years && `Experience: ${e.experience_years}`].filter(Boolean).join("\n\n");
+      const desc = [e.description, e.responsibilities && `Responsibilities:\n${e.responsibilities}`, e.start_date && `Start date: ${e.start_date}`, e.deadline && `Deadline: ${e.deadline}`].filter(Boolean).join("\n\n");
       setFields({
         firm_name: row.source_firm ?? "",
         role: e.role ?? row.source_title ?? "",
@@ -444,12 +446,13 @@ function ReviewDialog({
         application_mode: e.application_mode ?? (e.apply_url || row.source_url ? "external_url" : "email"),
         application_email: e.application_email ?? "",
         application_url: e.apply_url ?? row.source_url ?? "",
-        location: e.location ?? "",
-        eligibility: e.eligibility ?? "",
+        location: e.location ?? e.country ?? "",
+        eligibility: elig,
         stipend: e.stipend ?? "",
-        description: e.description ?? "",
+        description: desc,
         tier: "",
-        practice_area: "",
+        practice_area: e.practice_area ?? "",
+        task_brief: e.task_brief ?? "",
       });
     }
   }, [row]);
