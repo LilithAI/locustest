@@ -1105,6 +1105,7 @@ export type Database = {
           hq_city: string | null
           last_scraped_at: string | null
           linkedin_url: string | null
+          locus_take: string | null
           office_addresses: Json
           office_count: number | null
           offices: string[]
@@ -1133,6 +1134,7 @@ export type Database = {
           hq_city?: string | null
           last_scraped_at?: string | null
           linkedin_url?: string | null
+          locus_take?: string | null
           office_addresses?: Json
           office_count?: number | null
           offices?: string[]
@@ -1161,6 +1163,7 @@ export type Database = {
           hq_city?: string | null
           last_scraped_at?: string | null
           linkedin_url?: string | null
+          locus_take?: string | null
           office_addresses?: Json
           office_count?: number | null
           offices?: string[]
