@@ -1092,6 +1092,93 @@ export type Database = {
         }
         Relationships: []
       }
+      firm_profiles: {
+        Row: {
+          careers_email: string | null
+          careers_url: string | null
+          created_at: string
+          description: string | null
+          firm_name: string
+          firm_slug: string
+          founded_year: number | null
+          general_email: string | null
+          hq_city: string | null
+          last_scraped_at: string | null
+          linkedin_url: string | null
+          office_addresses: Json
+          office_count: number | null
+          offices: string[]
+          partner_count: number | null
+          phone_main: string | null
+          practice_areas: string[]
+          press_email: string | null
+          scrape_status: string | null
+          tagline: string | null
+          team_members: Json
+          team_page_url: string | null
+          total_lawyers: number | null
+          twitter_url: string | null
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          careers_email?: string | null
+          careers_url?: string | null
+          created_at?: string
+          description?: string | null
+          firm_name: string
+          firm_slug: string
+          founded_year?: number | null
+          general_email?: string | null
+          hq_city?: string | null
+          last_scraped_at?: string | null
+          linkedin_url?: string | null
+          office_addresses?: Json
+          office_count?: number | null
+          offices?: string[]
+          partner_count?: number | null
+          phone_main?: string | null
+          practice_areas?: string[]
+          press_email?: string | null
+          scrape_status?: string | null
+          tagline?: string | null
+          team_members?: Json
+          team_page_url?: string | null
+          total_lawyers?: number | null
+          twitter_url?: string | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          careers_email?: string | null
+          careers_url?: string | null
+          created_at?: string
+          description?: string | null
+          firm_name?: string
+          firm_slug?: string
+          founded_year?: number | null
+          general_email?: string | null
+          hq_city?: string | null
+          last_scraped_at?: string | null
+          linkedin_url?: string | null
+          office_addresses?: Json
+          office_count?: number | null
+          offices?: string[]
+          partner_count?: number | null
+          phone_main?: string | null
+          practice_areas?: string[]
+          press_email?: string | null
+          scrape_status?: string | null
+          tagline?: string | null
+          team_members?: Json
+          team_page_url?: string | null
+          total_lawyers?: number | null
+          twitter_url?: string | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       firm_suggestions: {
         Row: {
           admin_note: string | null
