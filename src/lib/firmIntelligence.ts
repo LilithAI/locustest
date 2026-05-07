@@ -316,6 +316,7 @@ export async function getFirmIntelligenceBySlug(
     practice_areas_last_updated_at: p.practice_areas_last_updated_at,
     news_last_updated_at: p.news_last_updated_at,
     offices_last_updated_at: p.offices_last_updated_at,
+    last_scraped_at: p.last_scraped_at,
     locus_take: p.locus_take,
     chips: chipsFor({
       intelligence_completeness_score: p.intelligence_completeness_score,
