@@ -34,6 +34,7 @@ import SearchFab from "@/components/search/SearchFab";
 // exact same module promise as React.lazy() — chunks are downloaded only once.
 const Waitlist = lazy(routeImports.waitlist as never);
 const Directory = lazy(routeImports.directory as never);
+const FirmProfile = lazy(routeImports.firmProfile as never);
 const Resources = lazy(routeImports.resources as never);
 const Playbook = lazy(routeImports.playbook as never);
 const PlaybookGuide = lazy(routeImports.playbookGuide as never);
@@ -169,6 +170,7 @@ const App = () => (
                   <Route path="/app" element={<AppHome />} />
                   <Route path="/waitlist" element={<Waitlist />} />
                   <Route path="/directory" element={<Directory />} />
+                  <Route path="/directory/firm/:slug" element={<FirmProfile />} />
                   <Route path="/playbook" element={<Playbook />} />
                   <Route path="/playbook/:slug" element={<PlaybookGuide />} />
                   <Route path="/resources" element={<Resources />} />
