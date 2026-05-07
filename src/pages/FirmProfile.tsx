@@ -57,7 +57,21 @@ export default function FirmProfile() {
   }
 
   const completenessPct = Math.round(firm.intelligence_completeness_score * 100);
-  const signaturePractices = firm.practice_areas.filter((p) => p.is_signature);
+  // Signature = rare practices (top 3 by depth_score, where depth_score = rarity)
+  const signaturePractices = [...firm.practice_areas]
+    .filter((p) => p.is_signature && p.depth_score && p.depth_score > 0.6)
+    .sort((a, b) => (b.depth_score ?? 0) - (a.depth_score ?? 0))
+    .slice(0, 3);
+  // Footprint summary line
+  const cleanOffices = firm.offices.filter((o) => o.city && o.city.trim());
+  const cityCount = new Set(cleanOffices.map((o) => o.city)).size;
+  const footprint =
+    cleanOffices.length === 0
+      ? null
+      : cleanOffices.length === 1
+        ? `Single-office firm in ${cleanOffices[0].city}`
+        : `HQ ${firm.hq_city ?? cleanOffices[0].city} · ${cleanOffices.length} offices across ${cityCount} ${cityCount === 1 ? "city" : "cities"}${cleanOffices.length >= 5 ? " · pan-India presence" : ""}`;
+  const lowConfidence = firm.intelligence_completeness_score < 0.6;
 
   return (
     <div className="container mx-auto px-4 md:px-8 py-8 max-w-5xl">
