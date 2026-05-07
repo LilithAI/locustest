@@ -304,7 +304,7 @@ export default function VacancyCard({ vacancy, onApply, archived = false, applic
 
         {!isClosed && appState === "idle" && (
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {onApply && (vacancy.application_email || !vacancy.application_url) && (
+            {onApply && (
               <Button
                 onClick={() => {
                   void track("vacancy_apply_clicked", { vacancy_id: vacancy.id, mode: "initial" });
