@@ -1,39 +1,36 @@
-## Next perf pass — finish what's left from the diagnostic
+## What's broken
 
-Two items remain from the lag investigation. Both are straightforward and isolated to non-business-logic code paths.
+Every route on the preview URL is returning a plain `Not Found` (not the React app's 404 page) — `/vacancies`, `/opportunities`, `/the-bar`, even `/auth`. Only `/` works. This is **not** a code change you'd see in a file diff — it's a busted Worker bundle.
 
-### 1. TheBarBrowse: stop pulling 500 rows on every visit
+## Why
 
-Today `TheBarBrowse.tsx` fetches up to 500 challenge rows + every attempt row for the user, then filters/sorts/paginates in JS. On a slow phone this is the heaviest page in the Bar flow.
+When the email infra was set up, it dropped `src/routes/lovable/email/queue/process.ts`, which `import`s from `@lovable.dev/email-js`. The package wasn't installed at that exact moment, so the next preview build failed:
 
-Changes (all in `src/pages/TheBarBrowse.tsx`):
-- Move filter (`type`, `area`, `diff`), sort, and pagination to the Supabase query using `.eq()` / `.order()` / `.range()`.
-- Use `select(..., { count: "exact" })` to drive the pager instead of `filtered.length`.
-- Keep the "hide already-attempted" behaviour, but switch from "fetch every attempt" to a server-side anti-join via a tiny RPC `bar_browse_challenges(p_type, p_area, p_diff, p_sort, p_offset, p_limit)` that returns `{ rows, total }` with attempted IDs excluded for the calling user (and no filter for guests).
-- Fetch the daily-cap row in parallel, unchanged.
-- Refetch only when filter/sort/page or `userId` changes — drop the implicit refetch on every mount.
+```
+Pre-transform error: Failed to resolve import "@lovable.dev/email-js"
+File: src/routes/lovable/email/queue/process.ts:1:33
+```
 
-Result: page load drops from ~500 rows to 30, and the JS filter/sort cost disappears.
+The package is installed now and `tsc` is clean — but the preview Worker is still serving the broken bundle from that failed build, which is why every non-root URL returns the worker's fallback `Not Found` instead of the SPA shell.
 
-### 2. Prefetch / background work audit
+Also worth noting: this project is a **pure SPA** (only `tanstackRouter()` in `vite.config.ts`, no `tanstackStart()` plugin, no `src/start.ts`). That means the `lovable/email/*` server-route files don't actually run as server endpoints here — they only exist as route entries in the route tree. The cron job that points at `/lovable/email/queue/process` will 404 forever in this stack.
 
-`src/lib/prefetch.ts` already gates on interaction + idle, but `COMMON_KEYS` still warms 5 chunks back-to-back with 800 ms gaps. On The Bar specifically, those chunks compete with the dashboard RPC and the click handlers feel sticky for the first ~5 s after first interaction.
+## Plan
 
-Changes:
-- Trim `COMMON_KEYS` to the 2 routes a Bar user actually hits next: `theBarBrowse`, `theBarHistory`. Drop `directory`, `playbook`, `resources`, `tools` from the auto-warm list — they're already prefetched on hover via `prefetchRoute`.
-- Bump the inter-chunk delay from 800 ms → 2000 ms and only start after `requestIdleCallback` fires (already the case, but remove the 60 s fallback timer that fires even with zero interaction — it's the source of "random" lag spikes 60 s into a session).
-- No change to `prefetchRoute` (hover/focus prefetch stays).
+1. **Force a fresh preview build** so the Worker stops serving the stale broken bundle. Touching `vite.config.ts` (no behaviour change, just bumping mtime) is enough to invalidate the cache and rebuild. After that, `/vacancies`, `/opportunities`, etc. should return the SPA shell again.
 
-Result: fewer background chunk downloads competing with click handlers; no surprise prefetch storm at the 60 s mark.
+2. **Decide what to do with the email queue route.** Two options — pick one:
+   - **(a) Move queue processing to a Supabase Edge Function** (`supabase/functions/process-email-queue/index.ts` already exists in the repo from an earlier setup). Repoint the pg_cron job at the edge function URL instead of `/lovable/email/queue/process`. This is the pattern the rest of your project already uses and it actually works in this SPA stack.
+   - **(b) Keep the TanStack server route** — but that requires migrating the project to TanStack Start (add `tanstackStart()` plugin, create `src/start.ts`, change the deployment target). Big change, not what you asked for.
 
-### Out of scope (intentionally)
+   Recommendation: **(a)**. It's a 5-minute change and matches the rest of your `supabase/functions/` setup.
 
-- No design/UI changes.
-- No auth flow changes (already handled last turn).
-- No new tables — only one read-only RPC.
+3. **Delete `src/routes/lovable/email/queue/process.ts`** (and any sibling `lovable/email/*` server route files the email scaffolder may add) once (2a) is in place — they're dead code in this stack and just risk re-introducing a bad import later.
 
-### Files touched
+4. **Verify** by curling `/vacancies`, `/opportunities`, `/the-bar` — all should return `200` with the SPA HTML, not plain text `Not Found`.
 
-- `supabase/migrations/<new>.sql` — add `bar_browse_challenges` RPC (SECURITY DEFINER, reads from `bar_challenges_student` view, excludes attempted IDs for the caller).
-- `src/pages/TheBarBrowse.tsx` — switch to RPC + server-side paging.
-- `src/lib/prefetch.ts` — trim `COMMON_KEYS`, raise delay, drop 60 s fallback.
+## What I won't touch
+
+- The `notify.lexleaks.com` domain setup — that part is fine, DNS is still verifying.
+- The `email_send_state` → `email_send_dedupe` rename from the previous step — keep it.
+- Any Bar / vacancies / auth code — not the cause.
