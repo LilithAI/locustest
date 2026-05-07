@@ -42,6 +42,9 @@ export function useAdminAccess(): AdminAccess {
       setScopes([]);
       return;
     }
+    // Reset to loading state so `ready` flips false until roles for the
+    // current user are fetched (prevents stale empty-scopes race after sign-in).
+    setScopes(null);
     let mounted = true;
     (async () => {
       const { data } = await supabase

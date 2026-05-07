@@ -1,20 +1,28 @@
-## Diagnosis
+## Problem
 
-The screenshot shows **"Previewing last saved version"** in the top-left of the Lovable editor. That preview is a static snapshot from before the `/admin/login` route was added, so the catch-all `*` route renders `NotFound`. The route itself is wired correctly in `src/App.tsx`:
+Signing in at `/admin/login` with `admin` / `Admin2026!` succeeds in Supabase, but the page immediately shows **"This account does not have admin access."** and signs the user out.
 
-```
-<Route path="/admin/login" element={<AdminLogin />} />
-```
+Verified in DB: the `admin` user exists, has `role='admin'` in `user_roles`, and `get_email_by_username('admin')` resolves to `admin@locus.legal`. So credentials and roles are correct — the bug is purely client-side.
 
-and the file `src/pages/AdminLogin.tsx` exists.
+## Root cause
+
+Race in `src/hooks/useAdminRole.ts` (`useAdminAccess`):
+
+1. Before sign-in: `userId = null` → effect sets `scopes = []`, so `ready = true`.
+2. User submits login. `AdminLogin.tsx` flips `justSignedIn = true`.
+3. The post-login effect runs immediately. At that instant `ready` is still `true` and `scopes` is still `[]` (stale from the unauth state) because the new `userId` hasn't propagated through `useAuthSession` yet.
+4. `hasAnyScope` is `false` → it signs the user out and shows the error toast — before the role fetch ever runs for the new user.
 
 ## Fix
 
-Switch the preview off the saved snapshot back to the live preview (click the version label / "Latest" in the editor), or hard-reload the preview iframe. No code change needed.
+Make `useAdminAccess` reset to a loading state whenever `userId` changes, so `ready` only becomes true once roles for the *current* user have actually been fetched.
 
-If after switching to the latest preview `/admin/login` still 404s, then I'll:
-1. Re-check `src/App.tsx` line 207 to confirm `<Route path="/admin/login" element={<AdminLogin />} />` is inside the `<Routes>` block and **above** the `*` catch-all.
-2. Confirm `src/pages/AdminLogin.tsx` default-exports the component.
-3. Restart the dev server.
+In `src/hooks/useAdminRole.ts`, inside the effect:
+- Call `setScopes(null)` at the start of the effect when `authReady && userId` (before kicking off the fetch). That way `ready` flips back to `false` while the new query is in flight, and the post-login effect in `AdminLogin` waits for the real result.
+- Keep the `userId == null` branch setting `scopes = []` (genuine signed-out state).
 
-No DB or app changes are needed yet — this is a preview-snapshot issue.
+No DB or route changes needed. No UI changes needed.
+
+## Files touched
+
+- `src/hooks/useAdminRole.ts` — small effect change to reset `scopes` to `null` on userId change before fetching.
