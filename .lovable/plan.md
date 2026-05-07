@@ -1,95 +1,60 @@
-## Goals
+## Problem
 
-1. Fix back-button overlap with the fixed Navbar.
-2. Reframe `/directory/firm/:slug` so it actually feels like **Intelligence**, not just a longer card. Hybrid layout: applicant-focused at top + analytical signals below. No peer comparison.
+Two bugs in the People section:
 
----
+1. **Field mismatch** — scraped data stores titles in `designation`, but the `TeamMember` TS interface and UI read `role`. So titles like "Partner" never render.
+2. **Scraper junk leaked in** — entries like `People`, `Management Board`, `Practice Areas`, `Sectors` are stored as if they were lawyers (they're nav labels). Some have a `designation` field containing a multi-paragraph blob of unrelated text scraped from the page.
 
-## 1. Layout fixes (FirmProfile.tsx)
+This affects ~18 firms with team data (SAM, AZB, Bharucha, etc.).
 
-- Add top padding to `<main>` so content clears the fixed Navbar (e.g. `pt-24 md:pt-28`).
-- Move the "Back to directory" link into a sticky-ish row inside the page container, below navbar offset. Style as a pill button (border + bg) so it never visually collides with floating nav.
-- Tighten section spacing on desktop (currently a lot of vertical air between blocks).
+## Fix
 
-## 2. Data coverage reality check
+### 1. Render-time cleanup (`FirmProfile.tsx` + `firm-profiles.ts`)
 
-Out of 95 firms:
-- 75 have descriptions, 69 have practice areas, 56 have phone, 54 LinkedIn, 51 careers URL — **strong**
-- Only 18 have team members or lawyer/partner counts — **weak**
-- 28 have full office addresses, 58 have founded year — **medium**
+Add a `normalizeTeam(rawMembers)` helper that:
 
-Implication: page must look smart **without** team data for ~80% of firms. Computed signals + AI take fill that gap.
+- Maps `designation` → `role` (keep `role` as fallback)
+- Drops entries whose `name` matches a junk blocklist: `People`, `Management Board`, `Practice Areas`, `Sectors`, `Practice Area Heads`, `Our People`, `Team`, `About`, `Contact`, etc. (case-insensitive)
+- Drops entries where `name` is empty, longer than ~60 chars, or contains digits/newlines (real names don't)
+- Truncates `role` to first ~80 chars and strips anything after a digit-run or capital-cluster (catches the SAM blob "Management BoardOur Management Board guides…")
+- Dedupes by name
 
-## 3. New section: "Locus Take" (AI summary, pre-generated)
+Apply the same helper in `FirmDrawer.tsx` if it shows team members.
 
-- Add column `locus_take TEXT` to `firm_profiles`.
-- One-off batch script (server function, admin-triggered): for each firm, send `{name, description, practice_areas, offices, founded_year, hq_city}` to Lovable AI (`google/gemini-2.5-flash`) and store a 2–3 paragraph analyst summary covering: positioning, practice strengths, geographic footprint, who this firm fits.
-- Render at top of page in a callout card with `Sparkles` icon and "Locus Take" label.
+### 2. One-off DB cleanup migration
 
-## 4. New section: "Intelligence Signals" (computed, no extra data needed)
+Run a SQL update to filter `team_members` arrays in place using the same rules so the bad rows disappear from the database permanently:
 
-A grid of 4–6 chips/badges derived from existing fields:
-
-- **Practice breadth**: count of practice areas → label (Boutique <5, Focused 5–10, Full-service 10–20, Mega-practice 20+).
-- **Geographic reach**: office count → (Single-city, Regional 2–3, National 4–6, Pan-India 7+).
-- **Firm maturity**: years since `founded_year` → (Emerging <10y, Established 10–25y, Legacy 25y+).
-- **Hiring signal**: present if `careers_url` OR `careers_email` exists → "Actively hiring — careers channel live".
-- **Direct contact**: present if `careers_email` exists → "Direct careers email available".
-- **Press visibility**: present if `linkedin_url` AND `twitter_url` → "Active on LinkedIn + Twitter".
-
-Each signal: small card with icon, headline, one-line explanation. Hide signals whose source data is missing.
-
-## 5. New section: "Practice Focus" (visual)
-
-Replace flat chip list with a categorised view:
-- Group `practice_areas` into buckets (Corporate, Disputes, Regulatory, IP, Tax, TMT, Real Estate, Employment, Others) via a simple keyword map.
-- Show as a 2–3 column layout with bucket headers and the matched chips inside, plus a small "Areas: N" counter.
-- Falls back to flat chip list if no bucket matches.
-
-## 6. Reorganised page order
-
-```
-[Back pill]
-[Header: name, badges, HQ, primary CTAs]                  ← compacted
-[Locus Take]                                              ← NEW, AI
-[Intelligence Signals — 6-up grid]                        ← NEW, computed
-[At-a-glance stats — same as today, smaller]
-[Practice Focus — bucketed]                               ← upgraded
-[About — collapsible if long]
-[Offices — same]
-[People — only if data exists, else hidden, no empty state]
-[Contact & links]
-[Suggest a fix link → existing flow]
+```sql
+update firm_profiles
+set team_members = (
+  select coalesce(jsonb_agg(elem), '[]'::jsonb)
+  from jsonb_array_elements(team_members) elem
+  where (elem->>'name') is not null
+    and length(elem->>'name') between 2 and 60
+    and lower(elem->>'name') not in (
+      'people','management board','practice areas','sectors',
+      'practice area heads','our people','team','about','contact','home'
+    )
+    and (elem->>'name') !~ '[0-9]'
+);
 ```
 
-People section: stop showing the "Team data unavailable" empty state — just omit the section. Replaces with a small "View team on firm site →" if `team_page_url` exists.
+Plus null-out / shorten any `designation` field longer than 120 chars (they're scraping artifacts, not real titles).
 
-## 7. Out of scope
+### 3. Re-render
 
-- Peer comparison / percentile ranking (user said no).
-- Per-lawyer pages.
-- Live re-scraping from the app.
-- Editing data in the UI.
+After cleanup, the SAM page will show 5 real partners (Pallavi Shroff, Akshay Chudasama, Gunjan Shah, Jatin Aneja, Raghubir Menon) each with their actual title, instead of "People" and "Management Board" cards.
 
----
+## Out of scope
 
-## Technical notes
+- Re-running the scraper to fetch fresh team data
+- Adding lawyer photos / bios
+- Per-lawyer profile pages
 
-**Files to edit**
-- `src/pages/FirmProfile.tsx` — layout fix, new sections, reorder.
-- `src/lib/firm-profiles.ts` — add `locus_take` to type; add helpers `computeSignals(profile)` and `bucketPracticeAreas(areas)`.
+## Files
 
-**New files**
-- `src/server/firm-intelligence.functions.ts` — admin-only `generateLocusTakes()` server fn that loops firms missing `locus_take` and calls Lovable AI Gateway.
-- (optional) one-off admin button on `AdminFirmSuggestions` or a hidden trigger to invoke it once.
-
-**DB migration**
-- `ALTER TABLE firm_profiles ADD COLUMN locus_take TEXT;`
-
-**AI**
-- Lovable AI Gateway, model `google/gemini-2.5-flash`, no user API key needed.
-- Prompt enforces: no fabrication, only reflect provided fields, neutral analyst tone, ~150 words.
-
-**Visual style**
-- Keep neobrutalist tokens (border-2, accent shadows). Locus Take card uses `bg-accent/5` with `border-accent/30` to differentiate.
-- All colors via semantic tokens.
+- Edit `src/lib/firm-profiles.ts` — add `normalizeTeam()` + extend `TeamMember` to include `designation`
+- Edit `src/pages/FirmProfile.tsx` — pipe team through `normalizeTeam`, render `role` correctly
+- Edit `src/components/FirmDrawer.tsx` — same normalization if it lists members
+- New migration to scrub `team_members` JSON in `firm_profiles`

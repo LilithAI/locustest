@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, MapPin, Mail, Phone, Globe, Linkedin, Twitter, Briefcase, Users, Building2, Calendar, ExternalLink, Sparkles, TrendingUp, Network, Award, Target, Radio, Eye } from "lucide-react";
-import { getFirmProfile, computeSignals, bucketPracticeAreas, type FirmProfile, type TeamMember, type OfficeAddress, type IntelSignal } from "@/lib/firm-profiles";
+import { getFirmProfile, computeSignals, bucketPracticeAreas, normalizeTeam, type FirmProfile, type OfficeAddress, type IntelSignal } from "@/lib/firm-profiles";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import FirmIntelligenceBadge from "@/components/directory/FirmIntelligenceBadge";
 
@@ -47,7 +47,7 @@ export default function FirmProfilePage() {
     );
   }
 
-  const team = (profile.team_members as unknown as TeamMember[]) || [];
+  const team = normalizeTeam(profile.team_members);
   const offices = (profile.office_addresses as unknown as OfficeAddress[]) || [];
   const primaryEmail = profile.careers_email || profile.general_email;
   const signals = computeSignals(profile);
