@@ -106,6 +106,12 @@ export default function Directory() {
     (searchParams.get("sLegal") as "" | "yes" | "no") ?? "",
   );
 
+  // Intelligence filters
+  const [verifiedOnly, setVerifiedOnly] = useState(searchParams.get("verified") === "1");
+  const [hiringOnly, setHiringOnly] = useState(searchParams.get("hiring") === "1");
+  const [intelIndex, setIntelIndex] = useState<Map<string, FirmIntelligenceSummary> | null>(null);
+  useEffect(() => { loadIntelligenceIndex().then(setIntelIndex); }, []);
+
   // Reset page on mode switch
   useEffect(() => { setPage(1); setView("grid"); }, [mode]);
 
