@@ -1,36 +1,53 @@
-## What's broken
+# Fix plan: Site-wide navigation lag + router crash
 
-Every route on the preview URL is returning a plain `Not Found` (not the React app's 404 page) — `/vacancies`, `/opportunities`, `/the-bar`, even `/auth`. Only `/` works. This is **not** a code change you'd see in a file diff — it's a busted Worker bundle.
+## Symptoms (site-wide, not just Playbook)
+- Click any nav link → URL updates immediately, but the old page stays mounted for ~1s before the new one appears.
+- Intermittent runtime error: `TypeError: undefined is not an object (evaluating 'match._nonReactive')` from `@tanstack/react-router`.
 
-## Why
+## Root cause
+The app runs on TanStack Router, but almost every shared component still navigates through a `react-router-dom` compatibility shim (`src/lib/rrd.tsx`) aliased in `vite.config.ts`. The shim wraps TanStack's `Link`, `useLocation`, `useNavigate`, `Navigate`, `useParams`, `useSearchParams`.
 
-When the email infra was set up, it dropped `src/routes/lovable/email/queue/process.ts`, which `import`s from `@lovable.dev/email-js`. The package wasn't installed at that exact moment, so the next preview build failed:
+Two real consequences:
+1. The shim's `Link` passes `to` as a plain string with no `params`/typing, and its `useNavigate` calls `tnav({ to: to as never })`. Combined with `defaultPreload: "intent"` and code-split routes, TanStack starts a transition, commits the URL, but the lazy chunk + match resolution finishes a beat later — so the old page stays painted until the new chunk is ready. There is no Suspense boundary tight enough around the route to show the skeleton during that gap.
+2. The shim's `useLocation` rebuilds an object every render and is consumed inside the Suspense fallback (`RouteSkeleton` uses `react-router-dom`'s `useLocation`). During a transition this reads router state at a moment when the new match's `_nonReactive` slot isn't populated yet → the crash seen in the console.
 
-```
-Pre-transform error: Failed to resolve import "@lovable.dev/email-js"
-File: src/routes/lovable/email/queue/process.ts:1:33
-```
+This affects every route, which matches what you're seeing.
 
-The package is installed now and `tsc` is clean — but the preview Worker is still serving the broken bundle from that failed build, which is why every non-root URL returns the worker's fallback `Not Found` instead of the SPA shell.
+## What I'll change
 
-Also worth noting: this project is a **pure SPA** (only `tanstackRouter()` in `vite.config.ts`, no `tanstackStart()` plugin, no `src/start.ts`). That means the `lovable/email/*` server-route files don't actually run as server endpoints here — they only exist as route entries in the route tree. The cron job that points at `/lovable/email/queue/process` will 404 forever in this stack.
+1. Move shared shell components off the shim onto native TanStack Router APIs.
+   - `src/components/Navbar.tsx`
+   - `src/components/MobileBottomDock.tsx`
+   - `src/components/Footer.tsx`
+   - `src/components/Layout.tsx`
+   - `src/components/AdminNavLink.tsx`
+   - `src/components/RouteSkeleton.tsx` (critical — it runs during the transition)
+   - `src/pages/NotFound.tsx`
+   Use `Link`, `useRouterState({ select: s => s.location.pathname })`, and `useNavigate` directly from `@tanstack/react-router`.
 
-## Plan
+2. Tighten the loading boundary so transitions feel instant.
+   - Wrap `<Outlet />` in `_layout.tsx` with its own `Suspense` + `RouteSkeleton` fallback (currently only the root has one, above the navbar).
+   - Result: clicking a nav link immediately swaps page content for the route-shaped skeleton instead of leaving the previous page on screen.
 
-1. **Force a fresh preview build** so the Worker stops serving the stale broken bundle. Touching `vite.config.ts` (no behaviour change, just bumping mtime) is enough to invalidate the cache and rebuild. After that, `/vacancies`, `/opportunities`, etc. should return the SPA shell again.
+3. Reduce the fragile preload behavior that's contributing to the `_nonReactive` race.
+   - Switch `defaultPreload` from `"intent"` to `false` in `src/router.tsx` while we stabilize, OR keep `"intent"` but stop calling `prefetchRoute` on `onTouchStart`/`onMouseEnter` from the shim'd `Link`. We'll pick one based on which keeps the perceived speed without the crash (default: disable global intent preload, keep explicit `prefetchRoute` calls only).
 
-2. **Decide what to do with the email queue route.** Two options — pick one:
-   - **(a) Move queue processing to a Supabase Edge Function** (`supabase/functions/process-email-queue/index.ts` already exists in the repo from an earlier setup). Repoint the pg_cron job at the edge function URL instead of `/lovable/email/queue/process`. This is the pattern the rest of your project already uses and it actually works in this SPA stack.
-   - **(b) Keep the TanStack server route** — but that requires migrating the project to TanStack Start (add `tanstackStart()` plugin, create `src/start.ts`, change the deployment target). Big change, not what you asked for.
+4. Shrink the shim's surface so the rest of the codebase can keep compiling.
+   - Keep `src/lib/rrd.tsx` available for the long tail of pages that still import from `react-router-dom`, but make its `Link` and `useNavigate` thin re-exports of TanStack's so behavior is identical to native usage.
+   - No mass page rewrite in this pass — only the shell + nav components above.
 
-   Recommendation: **(a)**. It's a 5-minute change and matches the rest of your `supabase/functions/` setup.
+5. Verify.
+   - Click through Home → Directory → Opportunities → Playbook → Resources → Tools → The Bar.
+   - Each nav click should: (a) URL changes, (b) skeleton appears immediately, (c) new page renders.
+   - Console should be clean of `match._nonReactive`.
+   - If anything still hangs, capture the failing route and iterate (likely a stray `react-router-dom` import inside that page).
 
-3. **Delete `src/routes/lovable/email/queue/process.ts`** (and any sibling `lovable/email/*` server route files the email scaffolder may add) once (2a) is in place — they're dead code in this stack and just risk re-introducing a bad import later.
+## Out of scope (intentionally)
+- No backend, email, auth, or Supabase changes.
+- No rewrite of every page that still imports from `react-router-dom` — those keep working through the (now thinner) shim.
+- No design or copy changes.
 
-4. **Verify** by curling `/vacancies`, `/opportunities`, `/the-bar` — all should return `200` with the SPA HTML, not plain text `Not Found`.
-
-## What I won't touch
-
-- The `notify.lexleaks.com` domain setup — that part is fine, DNS is still verifying.
-- The `email_send_state` → `email_send_dedupe` rename from the previous step — keep it.
-- Any Bar / vacancies / auth code — not the cause.
+## Technical notes
+- TanStack Router's `Link` with a plain string `to` is supported — we don't need to retrofit `params={{...}}` everywhere.
+- `useRouterState({ select })` is the correct way to read pathname without re-rendering on every router state change.
+- The Suspense boundary inside `_layout` will use the same `RouteSkeleton` so the shell (Navbar/Footer/Dock) stays mounted while only the page content swaps — exactly the "instant" feel that's missing today.

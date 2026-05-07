@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useRouterState } from "@tanstack/react-router";
 import ProfileMenu from "./ProfileMenuLazy";
 import AdminNavLink from "./AdminNavLink";
 import { prefetchRoute } from "@/lib/prefetch";
@@ -9,7 +9,7 @@ import { prefetchRoute } from "@/lib/prefetch";
 export default function Navbar() {
   const { theme, setTheme } = useTheme();
   const [scrolled, setScrolled] = useState(false);
-  const location = useLocation();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   // Auth-aware Home target. We deferred-import useAuthSession (same pattern as
   // Index.tsx / AdminNavLink) so anonymous visitors don't pay the supabase
@@ -70,8 +70,8 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const isActive = (href: string) => location.pathname === href;
-  const forceOpaque = location.pathname.startsWith("/the-bar/challenge");
+  const isActive = (href: string) => pathname === href;
+  const forceOpaque = pathname.startsWith("/the-bar/challenge");
 
 
 
@@ -84,7 +84,7 @@ export default function Navbar() {
       }`}
     >
       <div className="container mx-auto flex items-center justify-between py-3 px-4 md:px-8">
-        <Link to={homeHref} className="font-heading tracking-tight leading-none">
+        <Link to={homeHref as never} className="font-heading tracking-tight leading-none">
           <span className="text-2xl font-extrabold">
             Loc<span className="text-accent">us</span>
           </span>
@@ -97,7 +97,7 @@ export default function Navbar() {
             return l.glitch ? (
               <Link
                 key={l.href}
-                to={l.href}
+                to={l.href as never}
                 onMouseEnter={prefetch}
                 onFocus={prefetch}
                 onTouchStart={prefetch}
@@ -111,7 +111,7 @@ export default function Navbar() {
             ) : (
               <Link
                 key={l.href}
-                to={l.href}
+                to={l.href as never}
                 onMouseEnter={prefetch}
                 onFocus={prefetch}
                 onTouchStart={prefetch}
