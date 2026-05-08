@@ -141,16 +141,34 @@ export default function AppHome() {
       }
     };
 
-    init();
-
+    // Subscribe FIRST so we never miss the SIGNED_IN event during hydration.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session && mounted) navigate("/auth?redirect=/app", { replace: true });
+      if (!mounted) return;
+      if (session) {
+        void boot(session.user.id);
+      } else if (booted) {
+        // Truly signed out after we were signed in — bounce.
+        goAuth();
+      }
+    });
+
+    // Then check current session. If it's there, boot immediately.
+    // If it's not, give the client ~1.2s to hydrate from storage before
+    // assuming the user is signed out (cold tab / Safari / CDN race).
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      if (session) {
+        void boot(session.user.id);
+      } else {
+        redirectTimer = window.setTimeout(goAuth, 1200);
+      }
     });
 
     return () => {
       mounted = false;
+      if (redirectTimer) window.clearTimeout(redirectTimer);
       subscription.unsubscribe();
     };
   }, [navigate]);
