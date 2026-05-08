@@ -2,7 +2,7 @@ import { useState } from "react";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-// Google sign-in via lovable broker is temporarily disabled — see handleGoogleSignIn.
+import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,8 +91,21 @@ export default function Auth() {
     else toast.success("Password reset link sent to your email.");
   };
 
-  const handleGoogleSignIn = () => {
-    toast.info("Google sign-in is coming soon — please use email for now.");
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      void track("signup_started", { method: "google" });
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: `${window.location.origin}${postLoginPath}`,
+      });
+      if (result.error) throw result.error;
+      if (result.redirected) return;
+      void track("signup_completed", { method: "google" });
+      navigate(postLoginPath);
+    } catch (err: any) {
+      toast.error(err?.message || "Google sign-in failed");
+      setLoading(false);
+    }
   };
 
   return (
