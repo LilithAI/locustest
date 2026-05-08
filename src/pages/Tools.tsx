@@ -608,92 +608,161 @@ Make it jurisdiction-appropriate. Reference specific statutory provisions where 
         }
       `}</style>
       <div className="lt-page">
-        {/* Hero */}
-        <div className="lt-hero">
-          <div className="lt-eyebrow">Locus Tools</div>
-          <h1>AI-powered <em>legal document</em><br />tools for the modern practice.</h1>
-          <p>Generate jurisdiction-aware NDAs, data protection checklists, DPA templates, and internship agreements — instantly, without the billing clock running.</p>
-          {!selectedTool && (
-            <div className="lt-pills">
-              {JURISDICTIONS.map((j) => (
-                <div key={j.label} className={`lt-pill${j.active ? " active" : ""}`}>{j.label}</div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Catalogue View */}
-        {!selectedTool && (
-          <div className="lt-catalogue">
-            <div className="lt-cat-filter">
-              {CATEGORIES.map((cat) => (
-                <button key={cat.id} className={`lt-cat-chip${activeCategory === cat.id ? " active" : ""}`} onClick={() => setActiveCategory(cat.id)}>
-                  {cat.label}<span className="lt-chip-count">({cat.count})</span>
-                </button>
-              ))}
-            </div>
-            <div className="lt-catalogue-grid">
-              {TOOL_CATALOG.filter((t) => activeCategory === "All" || t.categories.includes(activeCategory)).map((tool) => (
-                <div
-                  key={tool.num}
-                  className={`lt-cat-card${tool.comingSoon ? " coming-soon" : ""}`}
-                  onClick={() => { if (tool.comingSoon) return; if (tool.href) { window.location.href = tool.href; } else { openTool(tool.id); } }}
-                  style={tool.featured ? { borderColor: "hsl(var(--accent))", boxShadow: "4px 4px 0 0 hsl(var(--accent))" } : undefined}
-                >
-                  {tool.comingSoon && <span className="lt-coming-badge">Coming Soon</span>}
-                  {tool.featured && (
-                    <span
-                      className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 rounded-sm border-2 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em]"
-                      style={{
-                        borderColor: "hsl(var(--accent))",
-                        background: "hsl(var(--accent) / 0.15)",
-                        color: "hsl(var(--accent))",
-                      }}
-                    >
-                      <span className="h-1.5 w-1.5 rounded-[1px] bg-accent" />
-                      Locus+ · Featured
-                    </span>
-                  )}
-                  <div className="lt-cat-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className="lt-cat-num">{tool.num}</span>
-                    {!tool.comingSoon && (
-                      <ShareIconButton
-                        size="sm"
-                        label={`Share ${tool.label}`}
-                        onShare={async () => {
-                          const url = withRef(
-                            tool.href ? `${window.location.origin}${tool.href}` : `${window.location.origin}/tools`,
-                            "tool-share",
-                          );
-                          const text = `${tool.label} — free legal tool on Locus`;
-                          const r = await shareOrCopy({ title: "Locus — Legal Tools", text, url });
-                          if (r === "copied") toast.success("Link copied");
-                        }}
-                      />
-                    )}
-                  </div>
-                  <div className="lt-cat-title">{tool.label}</div>
-                  <div className="lt-cat-desc">{tool.description}</div>
-                  <div className="lt-cat-tags">
-                    {tool.tags.map((tag) => (
-                      <span key={tag} className="lt-cat-tag">{tag}</span>
-                    ))}
-                  </div>
-                  <div className="lt-cat-arrow" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                    <span>{tool.comingSoon ? "Coming Soon" : "Open Tool →"}</span>
-                    {tool.comingSoon && (
-                      <FeatureVoteButton
-                        featureKey={`tool-${tool.num}`}
-                        count={voteCounts[`tool-${tool.num}`] || 0}
-                        voted={hasVoted(`tool-${tool.num}`)}
-                        onToggle={toggleVote}
-                      />
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+        {selectedTool ? (
+          // Keep original hero only on detail view
+          <div className="lt-hero">
+            <div className="lt-eyebrow">Locus Tools</div>
+            <h1>AI-powered <em>legal document</em><br />tools for the modern practice.</h1>
+            <p>Generate jurisdiction-aware NDAs, data protection checklists, DPA templates, and internship agreements — instantly, without the billing clock running.</p>
           </div>
+        ) : (
+          <>
+            {/* ── NEOBRUTALIST LANDING ── */}
+            <section className="pt-28 md:pt-32 pb-10 px-5 md:px-10 max-w-7xl mx-auto">
+              <div className="inline-block border-2 border-accent px-3 py-1.5 mb-8">
+                <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-accent">
+                  ▍ Locus Tools
+                </span>
+              </div>
+              <h1 className="font-heading text-5xl md:text-7xl lg:text-8xl font-extrabold leading-[0.95] tracking-tight max-w-5xl">
+                AI-powered <span className="text-accent">legal document</span> tools for the modern practice.
+              </h1>
+              <p className="mt-6 max-w-2xl text-base md:text-lg text-muted-foreground leading-relaxed">
+                Generate jurisdiction-aware NDAs, data protection checklists, DPA templates,
+                and internship agreements — instantly, without the billing clock running.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-2">
+                {JURISDICTIONS.map((j) => (
+                  <span
+                    key={j.label}
+                    className={`inline-flex items-center font-mono text-[10px] md:text-[11px] font-bold uppercase tracking-[0.14em] px-3 py-2 border-2 ${
+                      j.active
+                        ? "bg-accent text-accent-foreground border-accent"
+                        : "bg-transparent text-muted-foreground border-border"
+                    }`}
+                  >
+                    {j.label}
+                  </span>
+                ))}
+              </div>
+            </section>
+
+            <div className="border-t-2 border-foreground/80" />
+
+            {/* Category bar */}
+            <section className="px-5 md:px-10 max-w-7xl mx-auto pt-8 pb-6">
+              <div className="flex flex-wrap gap-3">
+                {CATEGORIES.map((cat) => {
+                  const active = activeCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setActiveCategory(cat.id)}
+                      className={`group inline-flex items-center gap-2 px-4 py-2.5 border-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] transition-all ${
+                        active
+                          ? "bg-accent text-accent-foreground border-accent shadow-[4px_4px_0_0_hsl(var(--foreground))]"
+                          : "bg-card text-foreground border-foreground/70 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_0_hsl(var(--accent))]"
+                      }`}
+                    >
+                      {cat.label}
+                      <span className={active ? "opacity-80" : "opacity-50"}>({cat.count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* Tool grid */}
+            <section className="px-5 md:px-10 max-w-7xl mx-auto pb-24">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {TOOL_CATALOG.filter((t) => activeCategory === "All" || t.categories.includes(activeCategory)).map((tool) => {
+                  const disabled = !!tool.comingSoon;
+                  return (
+                    <div
+                      key={`${tool.num}-${tool.label}`}
+                      onClick={() => {
+                        if (disabled) return;
+                        if (tool.href) { window.location.href = tool.href; } else { openTool(tool.id); }
+                      }}
+                      className={`group relative flex flex-col bg-card border-2 border-foreground p-6 transition-all ${
+                        disabled
+                          ? "cursor-not-allowed opacity-80"
+                          : "cursor-pointer shadow-[6px_6px_0_0_hsl(var(--foreground))] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[8px_8px_0_0_hsl(var(--accent))] hover:border-accent"
+                      }`}
+                    >
+                      {/* Coming-soon stamp */}
+                      {disabled && (
+                        <span className="absolute top-3 right-3 -rotate-6 inline-block bg-accent text-accent-foreground font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] border-2 border-foreground px-2 py-1">
+                          Coming Soon
+                        </span>
+                      )}
+
+                      {/* Top row: index + share */}
+                      <div className="flex items-start justify-between mb-5">
+                        <div className="inline-flex items-center justify-center min-w-[48px] h-10 px-2 border-2 border-foreground bg-background font-mono text-base font-extrabold tabular-nums">
+                          {tool.num}
+                        </div>
+                        {!disabled && (
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <ShareIconButton
+                              size="sm"
+                              label={`Share ${tool.label}`}
+                              onShare={async () => {
+                                const url = withRef(
+                                  tool.href ? `${window.location.origin}${tool.href}` : `${window.location.origin}/tools`,
+                                  "tool-share",
+                                );
+                                const text = `${tool.label} — free legal tool on Locus`;
+                                const r = await shareOrCopy({ title: "Locus — Legal Tools", text, url });
+                                if (r === "copied") toast.success("Link copied");
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Title */}
+                      <h3 className="font-heading text-2xl font-extrabold leading-tight tracking-tight mb-2">
+                        {tool.label}
+                      </h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed mb-5 flex-1">
+                        {tool.description}
+                      </p>
+
+                      {/* Tags */}
+                      <div className="flex flex-wrap gap-1.5 mb-5">
+                        {tool.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center font-mono text-[9.5px] font-bold uppercase tracking-[0.14em] border-2 border-foreground/70 bg-background px-2 py-1"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Footer action */}
+                      <div className="mt-auto flex items-center justify-between gap-3 pt-4 border-t-2 border-dashed border-foreground/30">
+                        <span className={`font-mono text-[11px] font-extrabold uppercase tracking-[0.16em] ${disabled ? "text-muted-foreground" : "text-accent"}`}>
+                          {disabled ? "Vote to unlock" : "Open Tool →"}
+                        </span>
+                        {disabled && (
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <FeatureVoteButton
+                              featureKey={`tool-${tool.num}`}
+                              count={voteCounts[`tool-${tool.num}`] || 0}
+                              voted={hasVoted(`tool-${tool.num}`)}
+                              onToggle={toggleVote}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </>
         )}
 
         {/* Detail View */}
