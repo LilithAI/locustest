@@ -1,67 +1,57 @@
-## The actual bug
+# Fix stale "Not Found" chunk recovery
 
-The "Not Found" you see is **not** your styled `src/pages/NotFound.tsx` (which renders "404 / Oops! Page not found / Return to Home"). It's the bare server response — monospaced "Not Found" text, top-left, no styling.
+## Context (corrected)
+- `locus.legal` = production (real users).
+- `lexleaks.com` = private staging (just you).
+- Two domains serving two deployments is **intentional** — not split-brain.
+- The "Not Found" you keep seeing is on **lexleaks.com while iterating**, i.e. the classic post-publish stale-chunk pattern. Real users on `locus.legal` would hit the same bug whenever you promote a build, so it's still worth fixing properly.
 
-That happens when a **lazy-loaded route chunk 404s**. Sequence:
+## Real problems to fix
+1. **One-shot reload guard is too strict.** `chunkRecovery.ts` uses a `sessionStorage` flag that allows exactly **one** reload per session. After that, every subsequent chunk failure is silently suppressed and the boundary renders `null` forever.
+2. **`ChunkErrorBoundary` returns `null` after suppression.** When recovery is suppressed, the user is left with a blank screen instead of a usable fallback.
+3. **`prefetchCommonRoutes()` swallows errors.** A failed background prefetch deletes the key but never routes the error into `tryRecoverFromChunkError`. Only `prefetchRoute` (hover prefetch) does that.
+4. **Leftover cross-domain plumbing.** Not breaking anything, but stale and confusing. Worth cleaning while we're in here.
 
-1. You published a new build. The browser still has the old `index.html` cached (or an in-memory module graph from before the deploy).
-2. You navigate to `/the-bar`, `/admin/...`, etc. React calls `import("@/pages/TheBar")` which resolves to the *old* hashed filename like `/assets/TheBar-abc123.js`.
-3. That file no longer exists on the new build → 404.
-4. The dynamic import rejects with `ChunkLoadError` / `Failed to fetch dynamically imported module`.
-5. There is **no error boundary around `<Suspense>`** in `src/App.tsx`, so the rejection bubbles up, React unmounts the tree, and the user is stuck staring at a stripped-down page.
+## Changes
 
-`useVersionCheck` only polls every 30s and its SW/cache cleanup is one-shot per browser, so it cannot rescue a chunk failure happening mid-session.
+### 1. `src/lib/chunkRecovery.ts` — allow up to 2 reloads per session
+- Replace the boolean `RELOAD_FLAG` with a **counter** in `sessionStorage` (`locus_chunk_reload_count`).
+- Allow up to **2** reloads per session. Third+ failure → return `false` so the boundary renders the styled fallback instead.
+- Keep the cache-busting `?v=<timestamp>` query param.
+- Export a new helper `getReloadAttempts(): number` so the boundary can decide between "silently reloading" and "show fallback".
 
-## The fix (3 layers, all needed)
+### 2. `src/components/ChunkErrorBoundary.tsx` — never render null forever
+- When a chunk error is caught:
+  - If `tryRecoverFromChunkError` returned `true` → render a small "Reloading…" placeholder (matches `RouteSkeleton` styling), not `null`. This avoids a flash of blank screen during the reload.
+  - If it returned `false` (limit reached) → render the styled fallback with a manual Reload button **and** a "Go home" link. Reload button should clear the session counter so the user gets a fresh 2 attempts.
+- For non-chunk errors, keep the existing branded fallback.
 
-### 1. Chunk-error boundary around the lazy `<Suspense>` (`src/App.tsx`)
+### 3. `src/lib/prefetch.ts` — route prefetch failures through recovery
+- In `prefetchCommonRoutes()`'s `run()` loop, change the `catch {}` to call `tryRecoverFromChunkError(err)` (same pattern as `prefetchRoute`). Background prefetch failures are the **earliest** signal that the deployed bundle no longer matches the user's HTML — using them proactively means users get bounced to the fresh build before they ever click.
 
-New file `src/components/ChunkErrorBoundary.tsx` — a class component that catches errors in render. If the error message matches the known chunk-load patterns:
-  - `ChunkLoadError`
-  - `Failed to fetch dynamically imported module`
-  - `error loading dynamically imported module`
-  - `Importing a module script failed`
+### 4. Cleanup of stale cross-domain code in `src/App.tsx`
+- Remove the `locuslegal.lovable.app → locus.legal` redirect block (host no longer exists; the published Lovable URL now redirects to `lexleaks.com`).
+- Leave the `post_oauth_redirect` and implicit-flow `#access_token=` rescuers — those are still correct and host-agnostic.
 
-…it does a **one-time hard reload with a cache-busting `?v=<timestamp>` query param**, using `sessionStorage` to guarantee at most one reload per session (so we never get into a reload loop if the chunk is genuinely broken). For any other error, it renders a small branded fallback with a "Reload" button — same styling language as `RouteSkeleton`.
-
-Wrap the existing `<Suspense fallback={<RouteSkeleton />}>` in `App.tsx` with `<ChunkErrorBoundary>`.
-
-### 2. Global `unhandledrejection` listener (in `src/main.tsx`)
-
-Some chunk failures surface as unhandled promise rejections (e.g. a prefetch from `prefetchCommonRoutes()` that loses its caller). Add a single `window.addEventListener('unhandledrejection', ...)` that:
-  - Inspects `event.reason?.message` / `event.reason?.name` for the same chunk-load patterns.
-  - If matched and the same one-shot `sessionStorage` flag isn't set, calls the same hard-reload helper (extracted to `src/lib/chunkRecovery.ts`).
-  - Otherwise no-op.
-
-Skipped in dev and inside iframes, identical guards to `useVersionCheck`.
-
-### 3. Make `prefetch.ts` swallow chunk errors loudly-but-safely
-
-Right now `prefetchRoute` does `.catch(() => fired.delete(key))`. That hides a genuine deploy mismatch. Change it to: on chunk-load error, *also* trigger the same recovery path from layer 2 (so a failed prefetch on hover proactively reloads the user onto the fresh build, instead of waiting for them to actually navigate and hit a blank screen).
-
-### Side benefit
-
-The styled `NotFound.tsx` will now actually render when the route is *genuinely* not in the route table, instead of getting masked by chunk-load failures that look like 404s.
-
-## Out of scope
-
-- No service worker / PWA changes.
-- No router migration.
-- No edits to `useVersionCheck` itself — it stays as the slow-path detector. The new error boundary is the fast-path catch.
-- No changes to lazy-load structure or `routeImports`.
+### 5. (Optional, flagged for your decision) `index.html` canonical
+- The HTML still emits `<link rel="canonical" href="https://locus.legal/" />` even when served from lexleaks.com. That's actually what you want for SEO — Google should index `locus.legal`, not the staging host. **No change recommended.** Just calling it out so you know it's intentional, not a bug.
 
 ## Files
 
 ```text
-src/lib/chunkRecovery.ts           NEW  — isChunkLoadError() + reloadOnce()
-src/components/ChunkErrorBoundary.tsx  NEW  — class component, wraps Suspense
-src/App.tsx                        EDIT — wrap <Suspense> with <ChunkErrorBoundary>
-src/main.tsx                       EDIT — install unhandledrejection listener
-src/lib/prefetch.ts                EDIT — route prefetch failures into chunkRecovery
+src/lib/chunkRecovery.ts            EDIT  — counter-based reload guard + getReloadAttempts()
+src/components/ChunkErrorBoundary.tsx  EDIT  — render placeholder mid-reload, fallback after limit
+src/lib/prefetch.ts                 EDIT  — route prefetchCommonRoutes errors through recovery
+src/App.tsx                         EDIT  — remove dead locuslegal.lovable.app redirect
 ```
 
-## Verification after implementation
+## Out of scope
+- No changes to `useVersionCheck` (it works correctly per-host).
+- No changes to routing library (still react-router-dom).
+- No service-worker / PWA changes.
+- No production deploy changes — this all lives in client code and ships with the next publish.
 
-- Open the preview, navigate between a few lazy routes → no regression.
-- Read `src/App.tsx` to confirm `<ChunkErrorBoundary>` wraps `<Suspense>` (not the other way around — boundary must be the parent so it catches Suspense's rethrow).
-- Confirm `sessionStorage` key is checked before reload to prevent loops.
+## Verification
+- After implementation, on lexleaks.com: trigger a chunk error (simulate by renaming a file in DevTools network blocklist) → confirm silent reload happens, capped at 2.
+- Force a 3rd failure → confirm styled fallback renders with working Reload + Go home buttons.
+- Confirm `prefetchCommonRoutes()` failures also trigger the recovery path (check Network tab after a publish).

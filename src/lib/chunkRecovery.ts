@@ -5,12 +5,12 @@
  * filenames that no longer exist. The dynamic import then 404s, React's
  * Suspense rethrows, and the user is stuck on a blank/"Not Found" screen.
  *
- * `isChunkLoadError` matches the known cross-browser error shapes.
- * `reloadOnce` does a single hard reload with a cache-busting `?v=` param,
- * gated by sessionStorage so we never loop if the chunk is genuinely broken.
+ * Recovery: cache-busting hard reload, capped at MAX_RELOADS per session
+ * to avoid infinite loops if the chunk is genuinely broken.
  */
 
-const RELOAD_FLAG = "locus_chunk_reload_v1";
+const RELOAD_COUNT_KEY = "locus_chunk_reload_count_v1";
+const MAX_RELOADS = 2;
 
 const PATTERNS = [
   /ChunkLoadError/i,
@@ -28,16 +28,37 @@ export function isChunkLoadError(err: unknown): boolean {
   return PATTERNS.some((re) => re.test(msg));
 }
 
+export function getReloadAttempts(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = sessionStorage.getItem(RELOAD_COUNT_KEY);
+    const n = raw ? parseInt(raw, 10) : 0;
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function resetReloadAttempts(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(RELOAD_COUNT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
- * Hard-reload once per session with a cache-busting query param. Returns
- * true if a reload was triggered, false if it was suppressed (loop guard,
- * SSR, etc).
+ * Hard-reload with a cache-busting query param, capped at MAX_RELOADS per
+ * session. Returns true if a reload was triggered, false if suppressed
+ * (limit reached, SSR, etc).
  */
 export function reloadOnce(): boolean {
   if (typeof window === "undefined") return false;
+  const attempts = getReloadAttempts();
+  if (attempts >= MAX_RELOADS) return false;
   try {
-    if (sessionStorage.getItem(RELOAD_FLAG)) return false;
-    sessionStorage.setItem(RELOAD_FLAG, "1");
+    sessionStorage.setItem(RELOAD_COUNT_KEY, String(attempts + 1));
   } catch {
     // sessionStorage unavailable — skip recovery to avoid reload loops.
     return false;

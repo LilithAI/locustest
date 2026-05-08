@@ -113,8 +113,13 @@ export function prefetchCommonRoutes() {
       fired.add(key);
       try {
         await routeImports[key]();
-      } catch {
+      } catch (err) {
         fired.delete(key);
+        // Earliest signal that the deployed bundle no longer matches the
+        // user's HTML — bounce them to the fresh build before they click.
+        void import("./chunkRecovery").then((m) =>
+          m.tryRecoverFromChunkError(err),
+        );
       }
       // Yield generously between chunks so the main thread stays responsive
       // and the network isn't competing with anything the user might do.
