@@ -3,12 +3,9 @@ import {
   HeadContent,
   Outlet,
   Scripts,
-  ClientOnly,
 } from "@tanstack/react-router";
-import { lazy, useEffect } from "react";
+import { useEffect } from "react";
 import { tryRecoverFromChunkError } from "../lib/chunkRecovery";
-
-const App = lazy(() => import("../App"));
 
 function ClientBootstrap() {
   useEffect(() => {
@@ -148,7 +145,7 @@ function RootDocument() {
         />
         <HeadContent />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <noscript>
           <img
             height="1"
@@ -159,9 +156,6 @@ function RootDocument() {
           />
         </noscript>
         <div id="root">
-          <ClientOnly fallback={<div />}>
-            <App />
-          </ClientOnly>
           <Outlet />
         </div>
         <ClientBootstrap />
@@ -220,4 +214,16 @@ export const Route = createRootRoute({
     links: [{ rel: "canonical", href: "https://locus.legal/" }],
   }),
   component: RootDocument,
+  notFoundComponent: () => (
+    <div style={{ padding: 32, fontFamily: "system-ui" }}>
+      <h1>404 — Page not found</h1>
+      <a href="/">Go home</a>
+    </div>
+  ),
+  errorComponent: ({ error }) => (
+    <div style={{ padding: 32, fontFamily: "system-ui" }}>
+      <h1>Something went wrong</h1>
+      <pre>{String(error)}</pre>
+    </div>
+  ),
 });
