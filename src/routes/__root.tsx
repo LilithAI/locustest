@@ -3,12 +3,9 @@ import {
   HeadContent,
   Outlet,
   Scripts,
-  ClientOnly,
 } from "@tanstack/react-router";
-import { lazy, useEffect } from "react";
+import { useEffect } from "react";
 import { tryRecoverFromChunkError } from "../lib/chunkRecovery";
-
-const App = lazy(() => import("../App"));
 
 function ClientBootstrap() {
   useEffect(() => {
