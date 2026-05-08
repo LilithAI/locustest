@@ -1,60 +1,54 @@
-# Why `/auth?redirect=/app&v=…` keeps appearing on refresh
+# Fix every "Not Found" on production deep links — once and for all
 
-## What's actually happening
+## Root cause
 
-When you refresh `lexleaks.com/app`, three things race in production:
+The app uses **React Router (`BrowserRouter`)** — pure client-side routing. When you click a `<Link>` inside the app it works fine. But when the browser asks the host directly for a path like:
 
-1. **`AppHome` mounts** → calls `supabase.auth.getSession()` → if session isn't immediately present, navigates to `/auth?redirect=/app`.
-2. **`useVersionCheck` fires immediately** (we removed the 5s delay so stale CDN edges are caught fast). On a stale CDN edge, `version.json` ≠ `__BUILD_VERSION__` → calls `reloadOnce()` → reloads with `?v=…` appended.
-3. **`main.tsx` strips `?v=`** on the next boot.
+- `/tools/cv-analyser`
+- `/auth`
+- `/applications`
+- `/admin/...`
+- `/firms/...`
+- any other non-root URL
 
-The `&v=…` you see on `/auth` means step 2 fired **after** step 1 already navigated to `/auth`, so the cache-buster got appended to that URL. The strip in `main.tsx` only runs once, at the top of `main.tsx`, on module init — and it apparently isn't winning the race against the reload chain on the live build.
+…on a hard refresh, paste, new tab, OAuth redirect, or shared link — the hosting layer must serve `index.html` so React can boot and resolve the route. Right now there is **no SPA fallback file**, so the host returns its own bare-text "Not Found" for anything that isn't `/` or a real static file.
 
-There are also **two real bugs** behind this:
+Evidence:
+- Screenshot shows plain `Not Found` (host-level), not the styled 404 from `src/pages/NotFound.tsx` (which would mean React booted).
+- `public/_redirects` does not exist.
+- Preview works because the dev server has a built-in SPA fallback; production hosting does not.
 
-### Bug 1 — `/app` bounces to `/auth` on refresh even when you're logged in
+This is a **single-file fix that resolves the entire class of bug** for every route in the app.
 
-`AppHome` treats "no session right now" as "log them out", but on a hard refresh the Supabase client may not have hydrated from localStorage yet by the time `getSession()` resolves on the very first tick (especially on Safari / cold tabs / behind a CDN). The fix is the same pattern Supabase docs recommend: subscribe to `onAuthStateChange` first, then call `getSession()`, and only redirect after we've confirmed there's truly no session (one short tick of grace, or wait for the first auth event).
+## The fix
 
-This single change kills 90% of the "I got logged out on refresh" reports — it's the actual reason you ended up at `/auth` in the first place.
+Add `public/_redirects` with the standard SPA fallback rule:
 
-### Bug 2 — `?v=` lingers in the URL on production
+```
+/*    /index.html   200
+```
 
-Two reasons it can stick:
-- The `main.tsx` strip only runs once at module load. If a reload chain happens (cache-buster → strip → version check fires again → cache-buster again), and the new build also has a stale `version.json` cached for a moment, you can re-acquire `?v=`.
-- On the **live** site, the build that's currently serving may not yet contain the strip + auth-path skip we shipped earlier — those only take effect once you click **Publish → Update**. Preview already has them; production until republished does not.
+That tells the host: for any path that isn't a real file, serve `index.html` with HTTP 200 and let React Router handle it. Status 200 (not 301/302) is critical — it preserves the original URL so React Router sees `/tools/cv-analyser` instead of `/`.
 
-## Plan
+## Why this also fixes the OAuth weirdness
 
-### Fix A — Stop `/app` from bouncing to `/auth` on refresh (the real bug)
+The post-login redirect dance (`?v=…`, `?redirect=/app`, bouncing to `/auth`) gets worse when an intermediate URL returns 404 — the browser treats it as a hard error and the recovery scripts can't catch it. With the fallback in place, every URL the OAuth broker hands back to the app boots React cleanly.
 
-In `src/pages/AppHome.tsx`:
-- Set up `onAuthStateChange` subscription **before** calling `getSession()`.
-- Treat the first 500–800ms as "session still hydrating" — don't navigate to `/auth` during that window.
-- Only redirect when `onAuthStateChange` has fired with `null` OR `getSession()` has resolved with `null` AND no auth event arrived within the grace window.
-- Same pattern needs to be applied to `ApplicationTracker.tsx` and `CvAnalyser.tsx` (they have the same anti-pattern).
+## Files changed
 
-### Fix B — Make the `?v=` strip idempotent
+- **`public/_redirects`** (new, 1 line)
 
-In `src/main.tsx`:
-- Keep the existing strip-on-boot.
-- Additionally, after `useVersionCheck`'s first successful match (build version === server version), strip `?v=` again from the URL via `history.replaceState`. Put that one-liner inside `useVersionCheck`'s success path (currently it just `return`s).
+That's the entire change. No code, no auth changes, no backend touches. The styled `NotFound.tsx` page will start working again for genuinely unknown routes (since React will now boot and render it instead of the host returning bare text).
 
-### Fix C (defensive) — Don't run version check until pathname is settled
+## After publishing — verification checklist
 
-In `src/hooks/useVersionCheck.ts`:
-- Defer the very first `check()` by one `requestAnimationFrame` (or a `0ms` `setTimeout`). That gives `AppHome`'s `navigate()` time to commit, so by the time the check runs, `pathname` is `/auth` and the auth-path skip kicks in cleanly. This costs nothing — version check still fires on first paint, just one frame later.
+Hard-refresh each in production (Cmd+Shift+R) and confirm the page renders, not bare "Not Found":
 
-## Question before I implement
+1. `lexleaks.com/tools/cv-analyser`
+2. `lexleaks.com/applications`
+3. `lexleaks.com/app`
+4. `lexleaks.com/auth`
+5. `lexleaks.com/admin/dashboard`
+6. `lexleaks.com/some-fake-route` → should now show the **styled** 404 page (proof React booted)
 
-The fixes I shipped in the previous turn (auth-path skip + `?v=` strip) only help **after you click Publish → Update on `lexleaks.com`**. Have you republished since those changes? If not, the simplest next step is: republish first, hard-refresh once, and confirm whether `/app` still bounces to `/auth`. If it still does after republish, Fix A above is the real fix — the version-check stuff is a sideshow.
-
-## Files touched
-
-- `src/pages/AppHome.tsx` (Fix A)
-- `src/pages/ApplicationTracker.tsx` (Fix A)
-- `src/pages/CvAnalyser.tsx` (Fix A)
-- `src/main.tsx` (Fix B)
-- `src/hooks/useVersionCheck.ts` (Fix B + Fix C)
-
-~30 lines changed across 5 files. No backend / DB / RLS changes.
+If #6 shows the styled 404 instead of bare text, the fix is confirmed working everywhere.
