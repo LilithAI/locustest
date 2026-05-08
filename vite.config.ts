@@ -70,6 +70,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     writeVersionJsonPlugin(),
+    spaFallbackPlugin(),
     // Bundle size report. Enabled with `bun run build --mode analyze`.
     // Writes dist/stats.html — open it locally to inspect chunk sizes.
     mode === "analyze" &&
