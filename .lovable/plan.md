@@ -1,41 +1,136 @@
-## Goal
+## Why
 
-Rehaul the `/tools` **landing/grid page** with a neobrutalist aesthetic that matches the Locus theme (heavy black borders, hard shadows, mono caps, accent-yellow blocks, no soft glassy gradients). Remove CV Analyser from the Tools catalog since it's already pinned at the top of `/resources`.
+Lovable's hosting layer only resolves deep links (e.g. `/auth`, `/app`, `/tools/cv-analyser`) when the project is a real TanStack Start app. The current setup is a Vite 5 + react-router-dom SPA — `_redirects` and the `spa-fallback-404` plugin are ignored by the host, so every non-root URL returns "Not Found" on `locustest.lovable.app`. This also breaks Google OAuth's post-login redirect.
 
-## Scope (what changes vs. what doesn't)
+The fix is the full migration the previous session backed out of. It's mechanical but touches a lot of files.
 
-**Changes — Tools landing page only:**
-- `src/data/tools.ts` — remove the CV Analyser entry (`num: "01"`); renumber the remaining 10 tools `01–10`. Update the `Students` count for the category bar accordingly.
-- `src/pages/Tools.tsx` — rebuild the **landing view** (hero, jurisdiction strip, category tabs, tool grid) in neobrutalism style. The category-counts array currently hardcodes `(11)/(3)` etc. — recompute from `TOOL_CATALOG` so it stays correct after the CV removal.
+## Scope
 
-**Does NOT change:**
-- The actual tool generators (NDA, Checklist, DPA, Internship, Freelancer, ToS) — forms, AI prompts, output rendering, share/download logic all stay byte-identical.
-- `/tools/cv-analyser` page itself — still works, still linked from `/resources`. Just no longer surfaced on `/tools`.
-- `/resources` page — unchanged.
-- Navbar, routing, business logic — unchanged.
+**Changes:** router framework, vite config, build entrypoint, all 79 files importing `react-router-dom`, and a new `src/routes/` tree wired one-to-one to today's `<Routes>` block in `src/App.tsx`.
 
-## Neobrutalist visual direction
+**Does NOT change:** page component bodies (UI, business logic, Supabase calls, queries, MDX content, design tokens, Tailwind, shadcn). Only their imports + how they're mounted.
 
-Aligned with Locus dark theme + accent yellow (already in `src/styles.css`):
+## Plan
 
-- **Borders:** `border-2 border-foreground` (or `border-accent` on featured), no rounded-2xl — use `rounded-none` or `rounded-sm` max.
-- **Shadows:** hard offset shadow `shadow-[6px_6px_0_0_hsl(var(--foreground))]`; on hover translate `-2px,-2px` and grow shadow to `8px 8px 0`.
-- **Type:** big slab/heading sizes, monospace caps for tags + numbering (`01 / 10` style top-left of each tile).
-- **Color blocks:** featured/active states get full `bg-accent text-accent-foreground` flat fill instead of subtle tints. Category tabs become hard chips that flip to solid yellow when active.
-- **Hero:** keep the existing copy ("AI-powered legal document tools…") but reframe in a brutalist slab — left-aligned giant heading, `LOCUS TOOLS` eyebrow chip with hard border, jurisdiction pills as black/yellow swatches with 2px borders.
-- **Tool grid:** 3-column on desktop / 1-col mobile, each card a rectangular black panel with hard accent shadow, `XX` index in the corner, name in heading font, tags as mono uppercase chips, "Coming Soon" overlay as a diagonal yellow stamp.
-- **Category bar:** horizontal row of brutalist chip-buttons with `(N)` count suffix; active = solid accent fill.
+### 1. Toolchain upgrade (one batch, must land together or revert)
+- `bun add -d vite@^7 @tanstack/router-plugin @tanstack/router-devtools`
+- `bun add @tanstack/react-router @tanstack/react-start@latest`
+- Keep `@vitejs/plugin-react-swc` (verify Vite 7 compat — fall back to `@vitejs/plugin-react` if SWC plugin breaks; this is what failed last time).
+- Keep `@mdx-js/rollup` but add it as a Vite plugin in the right order (pre-react). If MDX breaks again on Vite 7, swap to `@mdx-js/rollup` via Vite's `enforce: "pre"` (already done) and pin remark/rehype versions if needed.
+- Delete `react-router-dom` only after step 4 passes typecheck.
 
-No gradients, no soft glass, no backdrop-blur on this page.
+### 2. Vite config rewrite (`vite.config.ts`)
+- Replace plugin list with: `tanstackStart({ customViteReactPlugin: true })`, then `react()`, then MDX with `enforce: "pre"`, then version + componentTagger.
+- Remove `spaFallbackPlugin` (TanStack Start handles routing) and `public/_redirects`.
+- Keep `manualChunks` strategy but drop the `react-router` chunk rule.
+- Keep `BUILD_VERSION` injection (used by `useVersionCheck`).
 
-## Implementation steps
+### 3. Bootstrap files
+- Delete `src/main.tsx` and `src/App.tsx` content as the React-Router shell — preserve the chunk-recovery + cache-buster + standalone-PWA logic by moving it into `src/routes/__root.tsx`'s client-only effect, and the OAuth-hash + post-OAuth rescuers into the same place (they only run in the browser).
+- Create `src/router.tsx` exporting `getRouter()` per TanStack Start convention, with `defaultErrorComponent`, `defaultNotFoundComponent`, scroll restoration, `defaultPreload: "intent"`.
+- Create `src/routes/__root.tsx` with the html/head/body shell + global providers (`ThemeProvider`, `QueryClientProvider`, `TooltipProvider`, `Toaster`, `Sonner`, `CommandPaletteProvider`, `VersionWatcher`, `IdlePrefetcher`, `SessionKeepAlive`, `MetaPixelTracker`, `ChunkErrorBoundary`, `<Outlet/>`, `<CommandPalette/>`, `<SearchFab/>`). Provide `notFoundComponent` rendering the existing `NotFound` page.
+- Delete the orphaned `src/src/routeTree.gen.ts` (left over from the previous attempt) before generation runs.
 
-1. **`src/data/tools.ts`** — drop the CV Analyser item; renumber `02…11` → `01…10`. Remove `Students` from any item that no longer applies (only CV had it as primary; Internship + ESOP still cover Students).
-2. **`src/pages/Tools.tsx`** — replace only the landing-view JSX (the part rendered when `selectedTool === null`) with the new neobrutalist layout. Recompute `CATEGORIES` counts from `TOOL_CATALOG.filter(...)` instead of hardcoding. Keep all tool-specific state, generator forms, and output rendering unchanged.
-3. Verify: visit `/tools` in preview at the current 1032px viewport — confirm grid is 2–3 col, hard shadows render, CV Analyser is gone, every other tool still opens its form, "Coming Soon" tools still show vote button. Check `/resources` still pins CV Analyser.
+### 4. Route files (one per current `<Route>`)
+Map every line in today's `<Routes>` block to a file under `src/routes/`. Each file is ~10 lines: `createFileRoute(path)({ component: ExistingPage })` re-exporting the unchanged page component. Layout routes (`Layout`, `AdminLayout`) become pathless layout files using `_layout.tsx` / `_admin.tsx` conventions with `<Outlet/>`.
 
-## Out of scope
+Files to create (exact mapping):
 
-- Any change to individual tool form UIs (those keep their existing styling for now — can be brutalised in a follow-up pass if you want).
-- Changes to `/tools/cv-analyser` itself.
-- Routing/migration work (separate plan in `.lovable/plan.md`).
+```
+src/routes/
+  __root.tsx
+  _shell.tsx                       (wraps Layout — applies to most pages)
+  _shell.index.tsx                 -> /                   (Index)
+  _shell.app.tsx                   -> /app                (AppHome)
+  _shell.waitlist.tsx              -> /waitlist
+  _shell.directory.tsx
+  _shell.directory.firms.$slug.tsx
+  _shell.demofirminteligence.tsx
+  _shell.playbook.tsx
+  _shell.playbook.$slug.tsx
+  _shell.resources.tsx
+  _shell.tools.tsx
+  _shell.tools.cv-analyser.tsx
+  _shell.the-bar.tsx
+  _shell.the-bar.preview.tsx
+  _shell.the-bar.browse.tsx
+  _shell.the-bar.challenge.$id.tsx
+  _shell.the-bar.history.tsx
+  _shell.the-bar.leaderboard.tsx
+  _shell.applications.tsx
+  _shell.profile.edit.tsx
+  _shell.u.$username.tsx
+  _shell.opportunities.tsx
+  _shell.dock-lab.tsx
+  _shell.tour-lab.tsx
+  _shell.vacancies.tsx             (Navigate -> /opportunities via beforeLoad redirect)
+  _shell.opportunities-preview.tsx (redirect)
+  _shell.admin.tsx                 (AdminLayout wrapper, has <Outlet/>)
+  _shell.admin.index.tsx           -> /admin
+  _shell.admin.waitlist.tsx
+  _shell.admin.bar.tsx
+  _shell.admin.beta.tsx
+  _shell.admin.vacancies.tsx       (redirect -> /admin/opportunities)
+  _shell.admin.opportunities.tsx
+  _shell.admin.firm-suggestions.tsx
+  _shell.admin.broadcasts.tsx
+  _shell.admin.admins.tsx
+  _shell.admin.insights.tsx
+  _shell.admin.firm-intelligence.tsx
+  _shell.admin.firm-intelligence.$slug.edit.tsx
+  auth.tsx                         (no shell — /auth)
+  reset-password.tsx
+  choose-username.tsx
+  beta.tsx
+  beta.round-2.tsx
+  unsubscribe.tsx
+```
+
+Redirects use `beforeLoad: () => { throw redirect({ to: '/...' }) }`.
+
+### 5. Codemod the 79 files
+Mechanical search/replace, batch by import shape. The mapping is one-to-one:
+
+| react-router-dom | @tanstack/react-router |
+|---|---|
+| `Link`, `Outlet`, `Navigate`, `useLocation`, `useNavigate`, `useParams` | same names, same import |
+| `useSearchParams` | `useSearch` (different API — refactor call sites: `const sp = useSearch({ strict: false })`) |
+| `NavLink` | `Link` with `activeProps`/`inactiveProps` (rewrite `src/components/NavLink.tsx`) |
+| `<Link to={`/posts/${id}`}>` | `<Link to="/posts/$id" params={{ id }}>` — sweep all template-literal `to=` props |
+
+Plan the sweep in two passes:
+1. Pure rename pass via `rg`-driven script for the trivial cases (Link/Outlet/Navigate/useLocation/useNavigate/useParams).
+2. Manual pass for ~10 files using `useSearchParams` and any `<Link to={`...${...}`}>` patterns.
+
+### 6. Auth + OAuth rescuer relocation
+Move the two `window.location.hash`/`sessionStorage` blocks at the top of `src/App.tsx` into a `useEffect` inside `__root.tsx`'s client component. They must run before the first non-root render but after Supabase client mount — `useEffect` on root is fine because the effect runs on mount and the redirect happens via `window.location.replace` (full reload).
+
+### 7. Cleanup
+- Remove `react-router-dom` from `package.json`.
+- Delete `public/_redirects` and the `spa-fallback-404` plugin.
+- Delete `src/src/routeTree.gen.ts` (stale).
+- Update `src/lib/prefetch.ts` — TanStack Router has its own prefetch (`router.preloadRoute`). Either keep the existing hover-prefetch-by-import-promise hack (still works since it just imports modules) or migrate to `defaultPreload: "intent"` + delete `prefetch.ts`. Prefer the latter — simpler and idiomatic.
+- Verify `useTrackPageViews` and `MetaPixelTracker` still fire on route changes (use `useRouterState({ select: s => s.location })` instead of `useLocation` if needed — but `useLocation` works too).
+
+### 8. Verification
+1. `bun run build` succeeds.
+2. Preview loads `/`, `/auth`, `/app`, `/tools`, `/tools/cv-analyser`, `/admin`, `/u/jeet` — all render their existing UI.
+3. Hard-refresh on `/tools/cv-analyser` returns 200, not 404.
+4. Google OAuth round-trip lands on `/app` (the broker's hash-token rescuer in `__root` consumes the token).
+5. Admin redirect (`/admin/vacancies` → `/admin/opportunities`) still works.
+6. The neobrutalist `/tools` page still renders (no styling regressions).
+
+## Risks & rollback
+
+- **Vite 7 + SWC + MDX compat** — the exact thing that killed the previous attempt. Mitigation: land the toolchain upgrade as step 1, build immediately, and if the plugin combo breaks, fall back from `@vitejs/plugin-react-swc` to `@vitejs/plugin-react` before touching any route files.
+- **Server-side bundling** — TanStack Start builds an SSR bundle. `src/App.tsx` and most pages reference `window`/`localStorage` at module top-level (the OAuth rescuer especially). All such code MUST move inside `useEffect` or be guarded by `typeof window !== "undefined"` — this is already the case for App.tsx but page-level audits may surface a few more spots.
+- **`useSearchParams` API change** — tracked as the only non-trivial codemod.
+- **Rollback** — the migration touches so many files that partial rollback is impractical. The branch is the rollback unit; if step 8 fails irrecoverably, revert the entire branch.
+
+## What I will NOT touch this pass
+
+- Page UI, copy, design tokens, Tailwind config.
+- Supabase queries, edge functions, RLS, auth tables.
+- The neobrutalist `/tools` redesign that just shipped.
+- Mobile dock, command palette, tour overlays — only their `react-router-dom` imports get rewritten.
+- Adding new routes or features.
