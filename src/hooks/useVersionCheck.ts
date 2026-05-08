@@ -94,7 +94,20 @@ export function useVersionCheck(
         if (!res.ok) return;
         const data = (await res.json()) as { version?: string };
         if (!data?.version) return;
-        if (data.version === currentVersion) return;
+        if (data.version === currentVersion) {
+          // Build matches — strip lingering ?v= and clear the cachebust flag
+          // so future legitimate reloads aren't misclassified.
+          try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.has("v")) {
+              url.searchParams.delete("v");
+              const next = url.pathname + (url.search ? url.search : "") + url.hash;
+              window.history.replaceState(window.history.state, "", next);
+            }
+          } catch { /* ignore */ }
+          try { sessionStorage.removeItem("locus_recent_cachebust"); } catch { /* ignore */ }
+          return;
+        }
 
       // Skip auto-reload while the user is on an auth-sensitive screen or
       // mid-OAuth roundtrip. Forcing a reload here can race setSession and
@@ -137,10 +150,12 @@ export function useVersionCheck(
       }
     };
 
-    // Run the FIRST check immediately on load (not after 5s). This is the
-    // change that actually catches users opening the site fresh on a stale
-    // CDN edge — they'll be auto-redirected with a cache-buster.
-    check();
+    // Defer the FIRST check by one frame so any pending route-level
+    // navigate() (e.g. AppHome → /auth) commits first. That way the
+    // auth-path skip kicks in cleanly and we don't append ?v=… to /auth.
+    const firstCheckId = window.requestAnimationFrame(() => {
+      window.setTimeout(check, 0);
+    });
 
     const interval = window.setInterval(check, intervalMs);
     const onFocus = () => check();
@@ -151,6 +166,7 @@ export function useVersionCheck(
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
+      window.cancelAnimationFrame(firstCheckId);
       window.clearInterval(interval);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);

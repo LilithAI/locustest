@@ -449,16 +449,12 @@ export default function CvAnalyser() {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!mounted) return;
-      const uid = data?.user?.id ?? null;
-      setUserId(uid);
-      setAuthReady(true);
-      if (!uid) return;
+
+    const loadFor = async (uid: string) => {
       const { data: cvRef } = await supabase.rpc("get_own_cv_ref");
       const cvRow = Array.isArray(cvRef) ? cvRef[0] : cvRef;
       const cvUrl = (cvRow as { cv_url?: string | null } | null)?.cv_url;
+      if (!mounted) return;
       if (cvUrl) setExistingCv(cvUrl);
       const { data: hist } = await supabase
         .from("cv_analyses")
@@ -466,9 +462,34 @@ export default function CvAnalyser() {
         .eq("user_id", uid)
         .order("created_at", { ascending: false })
         .limit(10);
-      if (hist) setHistory(hist);
-    })();
-    return () => { mounted = false; };
+      if (mounted && hist) setHistory(hist);
+    };
+
+    // Subscribe first so we catch SIGNED_IN events that arrive after mount.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (!mounted) return;
+      const uid = s?.user?.id ?? null;
+      setUserId(uid);
+      setAuthReady(true);
+      if (uid) void loadFor(uid);
+    });
+
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      const uid = session?.user?.id ?? null;
+      if (uid) {
+        setUserId(uid);
+        setAuthReady(true);
+        void loadFor(uid);
+      } else {
+        // Give the session ~1.2s to hydrate before declaring signed-out.
+        window.setTimeout(() => {
+          if (mounted) setAuthReady(true);
+        }, 1200);
+      }
+    });
+
+    return () => { mounted = false; subscription.unsubscribe(); };
   }, []);
 
   const pick = () => fileRef.current?.click();
