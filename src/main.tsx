@@ -8,11 +8,13 @@ import { tryRecoverFromChunkError } from "./lib/chunkRecovery";
 // reload — see `lib/chunkRecovery.ts` for the loop guard.
 if (typeof window !== "undefined") {
   // Strip our cache-buster `?v=…` once the fresh build has loaded so it
-  // doesn't linger in the URL bar, shared links, or analytics — and so the
-  // useVersionCheck reload-loop guard stays accurate.
+  // doesn't linger in the URL bar, shared links, or analytics. Stash a flag
+  // in sessionStorage first so useVersionCheck's reload-loop guard still
+  // knows we just came back from a cache-buster reload.
   try {
     const url = new URL(window.location.href);
     if (url.searchParams.has("v")) {
+      try { sessionStorage.setItem("locus_recent_cachebust", "1"); } catch { /* ignore */ }
       url.searchParams.delete("v");
       const next = url.pathname + (url.search ? url.search : "") + url.hash;
       window.history.replaceState(window.history.state, "", next);
