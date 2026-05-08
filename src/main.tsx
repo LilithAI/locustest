@@ -7,6 +7,20 @@ import { tryRecoverFromChunkError } from "./lib/chunkRecovery";
 // fired on hover, or background imports). Triggers a single cache-busting
 // reload — see `lib/chunkRecovery.ts` for the loop guard.
 if (typeof window !== "undefined") {
+  // Strip our cache-buster `?v=…` once the fresh build has loaded so it
+  // doesn't linger in the URL bar, shared links, or analytics — and so the
+  // useVersionCheck reload-loop guard stays accurate.
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("v")) {
+      url.searchParams.delete("v");
+      const next = url.pathname + (url.search ? url.search : "") + url.hash;
+      window.history.replaceState(window.history.state, "", next);
+    }
+  } catch {
+    /* ignore */
+  }
+
   window.addEventListener("unhandledrejection", (event) => {
     if (tryRecoverFromChunkError(event.reason)) {
       event.preventDefault();
