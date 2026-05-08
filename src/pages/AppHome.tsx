@@ -51,19 +51,18 @@ export default function AppHome() {
 
   useEffect(() => {
     let mounted = true;
+    let redirectTimer: number | null = null;
+    let booted = false;
 
-    const init = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    const goAuth = () => {
+      if (!mounted || booted) return;
+      navigate("/auth?replace=/app".replace("replace", "redirect"), { replace: true });
+    };
 
-      if (!mounted) return;
-      if (!session) {
-        navigate("/auth?redirect=/app", { replace: true });
-        return;
-      }
-
-      const uid = session.user.id;
+    const boot = async (uid: string) => {
+      if (!mounted || booted) return;
+      booted = true;
+      if (redirectTimer) { window.clearTimeout(redirectTimer); redirectTimer = null; }
 
       try {
         // Single round-trip via SECURITY DEFINER RPC — replaces 5 parallel queries.
