@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from "vite";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react-swc";
 import mdx from "@mdx-js/rollup";
 import remarkGfm from "remark-gfm";
@@ -70,10 +71,13 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     { enforce: "pre" as const, ...mdx({ jsxRuntime: "automatic", development: false, providerImportSource: "@mdx-js/react", remarkPlugins: [remarkGfm], rehypePlugins: [rehypeSlug] }) } as Plugin,
+    tanstackStart({
+      spa: { enabled: true },
+      router: { generatedRouteTree: "src/routeTree.gen.ts" },
+    }),
     react(),
     mode === "development" && componentTagger(),
     writeVersionJsonPlugin(),
-    spaFallbackPlugin(),
     // Bundle size report. Enabled with `bun run build --mode analyze`.
     // Writes dist/stats.html — open it locally to inspect chunk sizes.
     mode === "analyze" &&
