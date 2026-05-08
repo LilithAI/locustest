@@ -1,87 +1,60 @@
-## Plan — lightweight Lovable page picker
+## Goal
+Retry the Lovable custom-domain setup cleanly, verify whether deep-link 404s are fixed this time, and have a fallback ready if they aren't. **No app code changes** — this is purely a hosting/DNS exercise.
 
-Goal: get the Lovable preview URL dropdown to list every page in the app, without changing how routing actually works (`react-router-dom` in `src/App.tsx` stays in charge).
+## Why this might work this time (and might not)
+Last time: home loaded, `/directory` 404'd. Today's curl on `locustest.lovable.app` shows the same 404 from Cloudflare with `text/plain` — so the bug is in Lovable's edge layer for this project. Retrying could succeed if (a) Lovable has shipped a fix, or (b) the previous attempt had a Cloudflare proxy-mode mismatch that we set up cleanly this time. Otherwise we'll see the same 404 within 5 minutes of going live, and we cut over to Vercel.
 
-### Approach
+## You do (steps 1–5)
 
-Create thin stub files under `src/routes/` — one per public route — that exist purely so Lovable's picker can scan them and populate the dropdown. They are not wired into any router and their components never render in the live app. The real routing is unchanged.
+### 1. Pick the domain to use
+What's the domain bought from Hostinger? (e.g. `locus.legal`, or a subdomain like `app.locus.legal`.) Tell me which subdomain you want as Primary — `locus.legal` or `www.locus.legal`. Both should be added so both resolve.
 
-### What gets created
+### 2. Clean slate at Cloudflare
+Before re-adding in Lovable, make sure DNS is in a known-good state:
+- Log into Cloudflare → DNS for the domain.
+- **Delete any old A/CNAME/TXT records** from the previous Lovable attempt (root `@`, `www`, `_lovable`). Stale records are the #1 cause of "domain attached but routing broken."
+- Decide proxy mode now (next step depends on it).
 
-One stub per route from `src/App.tsx`, using TanStack flat-dot naming so the picker shows clean URLs:
+### 3. Decide: Cloudflare proxy ON or OFF
+- **OFF (DNS-only, grey cloud)** → use Lovable's standard A-record setup. Simpler. Recommended for the retry.
+- **ON (orange cloud, proxied)** → must use Lovable's "Domain uses Cloudflare or a similar proxy" mode (CNAME-based). If you proxied last time without ticking that box, that alone could explain the failure.
 
-```text
-src/routes/
-  __root.tsx                              (root shell stub)
-  index.tsx                               (/)
-  app.tsx                                 (/app)
-  waitlist.tsx
-  directory.tsx
-  directory.firms.$slug.tsx               (/directory/firms/:slug)
-  playbook.tsx
-  playbook.$slug.tsx
-  resources.tsx
-  tools.tsx
-  tools.cv-analyser.tsx
-  the-bar.tsx
-  the-bar.preview.tsx
-  the-bar.browse.tsx
-  the-bar.challenge.$id.tsx
-  the-bar.history.tsx
-  the-bar.leaderboard.tsx
-  applications.tsx
-  profile.edit.tsx
-  u.$username.tsx
-  opportunities.tsx
-  dock-lab.tsx
-  tour-lab.tsx
-  auth.tsx
-  reset-password.tsx
-  choose-username.tsx
-  beta.tsx
-  beta.round-2.tsx
-  unsubscribe.tsx
-  admin.tsx
-  admin.index.tsx                         (/admin)
-  admin.login.tsx
-  admin.waitlist.tsx
-  admin.bar.tsx
-  admin.beta.tsx
-  admin.opportunities.tsx
-  admin.firm-suggestions.tsx
-  admin.broadcasts.tsx
-  admin.admins.tsx
-  admin.insights.tsx
-  admin.firm-intelligence.tsx
-  admin.firm-intelligence.$slug.edit.tsx
+### 4. Add the domain in Lovable
+- Project Settings → Domains → Connect Domain.
+- Enter the root domain (e.g. `locus.legal`).
+- If you chose proxy ON in step 3, expand **Advanced** → tick **"Domain uses Cloudflare or a similar proxy"**.
+- Add the records Lovable shows you at Cloudflare exactly (A `@` → 185.158.133.1 + TXT `_lovable`, OR the CNAME variant if proxied).
+- Repeat **Add Domain** for `www.locus.legal` so both resolve.
+- Set the one you want canonical as **Primary**.
+
+### 5. Wait for status = Active
+Watch the Domains page. Status flow: Verifying → Setting up → Active. Don't proceed until both rows show **Active** (usually 5–60 min, can take up to 72h). If it stalls in Verifying, DNS isn't propagating — recheck with [dnschecker.org](https://dnschecker.org).
+
+## I do (steps 6–7) — once you tell me the domain is Active
+
+### 6. Run the curl smoke test
+I'll run, in parallel:
 ```
-
-Plus a small README (`src/routes/_README.md`) calling this out as a picker-only stub directory so future-me doesn't get confused.
-
-### Stub file shape
-
-Each file is a one-liner that parses cleanly and does nothing at runtime:
-
-```tsx
-// Picker stub only — real routing lives in src/App.tsx (react-router-dom).
-export {};
+curl -I https://<domain>/
+curl -I https://<domain>/directory
+curl -I https://<domain>/resources
+curl -I https://<domain>/u/test
+curl -I https://<domain>/admin/login
 ```
+**Pass criteria:** every URL returns `200` with `content-type: text/html`. Anything else (404, text/plain, Cloudflare error page) = failure.
 
-That's it. No `createFileRoute`, no imports of TanStack packages. Lovable's picker reads the filenames; the file just needs to be a valid TS module.
+### 7. Tell you the result
+- **Pass** → republish, update `index.html` canonical/og:url + `public/sitemap.xml` to the new domain, update Supabase Site URL/redirect allowlist. Done.
+- **Fail (same 404s)** → this is now a confirmed reproducible Lovable bug across two attempts. Stop retrying. Move on to the fallback.
 
-### Validation
+## Fallback if retry fails
+Connect the **same** Hostinger domain to Vercel instead — DNS just points at Vercel's IPs/CNAME instead of Lovable's. Existing `vercel.json` provides SPA fallback. ~15 min from "remove Lovable DNS records" to "Active on Vercel with deep links working." I'll write the exact steps when/if we get there.
 
-1. Build still succeeds (no new deps, no new runtime code).
-2. The actual app routes still work in preview (`/admin`, `/the-bar/leaderboard`, `/directory/firms/aarna-law`, etc.) — unchanged because `App.tsx` is untouched.
-3. The Lovable preview URL dropdown lists the routes above.
+## What I am NOT doing
+- No edits to `App.tsx`, `vite.config.ts`, `vercel.json`, `public/_redirects`, or any route file.
+- No HashRouter migration (still rejected for SEO/OAuth reasons).
+- No changes to Supabase auth yet — only after a domain goes Active.
+- No support ticket yet — we'll have stronger evidence after this retry.
 
-### Tradeoffs (the "hack" part)
-
-- **Drift:** if you add/rename/delete a real route in `App.tsx`, the picker won't know unless I also update `src/routes/`. I'll note this in the README so we remember.
-- **Picker-only:** clicking a route in the picker just navigates the URL; `react-router-dom` then handles it normally. There is no SSR / file-based routing benefit — only the dropdown.
-- **If the picker requires real `createFileRoute()` calls** (not just filenames), the empty-stub trick won't work and I'll fall back to a one-line `createFileRoute` stub that returns `null` — same idea, slightly more boilerplate. I'll detect this on first verification.
-
-### Out of scope
-
-- No Vite upgrade, no TanStack Router migration, no changes to `App.tsx`, `main.tsx`, auth, OAuth, Supabase, or styling.
-- No `_redirects` / `vercel.json` changes.
+## What I need from you to start
+Just the domain name. Once you've completed steps 1–5 and Lovable shows **Active**, ping me and I'll run the curl test in step 6.
