@@ -198,7 +198,9 @@ const App = () => {
         history.replaceState(null, "", window.location.pathname + window.location.search);
       } catch {}
       const safe = next && next.startsWith("/") && !next.startsWith("//") ? next : "/app";
-      window.location.replace(safe);
+      window.history.replaceState({}, "", safe);
+      window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
+      setOauthInFlight(false);
     };
 
     // Case 1: implicit-flow tokens in the hash.
