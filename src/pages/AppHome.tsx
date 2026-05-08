@@ -56,7 +56,7 @@ export default function AppHome() {
 
     const goAuth = () => {
       if (!mounted || booted) return;
-      navigate("/auth?replace=/app".replace("replace", "redirect"), { replace: true });
+      navigate("/auth?redirect=/app", { replace: true });
     };
 
     const boot = async (uid: string) => {
