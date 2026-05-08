@@ -635,7 +635,7 @@ Make it jurisdiction-appropriate. Reference specific statutory provisions where 
                 <div
                   key={tool.num}
                   className={`lt-cat-card${tool.comingSoon ? " coming-soon" : ""}`}
-                  onClick={() => { if (tool.comingSoon) return; if (tool.href) { window.location.href = tool.href; } else { openTool(tool.id); } }}
+                  onClick={() => { if (tool.comingSoon) return; if (tool.href) { navigate(tool.href); } else { openTool(tool.id); } }}
                   style={tool.featured ? { borderColor: "hsl(var(--accent))", boxShadow: "4px 4px 0 0 hsl(var(--accent))" } : undefined}
                 >
                   {tool.comingSoon && <span className="lt-coming-badge">Coming Soon</span>}
