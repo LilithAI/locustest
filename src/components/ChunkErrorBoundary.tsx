@@ -3,7 +3,6 @@ import {
   tryRecoverFromChunkError,
   isChunkLoadError,
   resetReloadAttempts,
-  canReload,
 } from "@/lib/chunkRecovery";
 
 interface Props {
@@ -27,21 +26,16 @@ export default class ChunkErrorBoundary extends Component<Props, State> {
   state: State = { error: null, reloading: false };
 
   static getDerivedStateFromError(error: Error): State {
-    // Optimistically render the "Loading latest version…" placeholder when we
-    // expect chunkRecovery to fire, so the user doesn't see a single-frame
-    // flash of the styled fallback during React's commit transition.
-    // componentDidCatch corrects this if the actual reload is suppressed.
-    const willReload = isChunkLoadError(error) && canReload();
-    return { error, reloading: willReload };
+    return { error, reloading: false };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     if (isChunkLoadError(error)) {
       const triggered = tryRecoverFromChunkError(error);
-      if (!triggered) {
-        // Anticipation was optimistic — actual reload was blocked (limit hit
-        // or sessionStorage write failed). Drop to the styled fallback.
-        this.setState({ reloading: false });
+      if (triggered) {
+        // Hard reload is in flight — show a "Reloading…" placeholder so the
+        // user doesn't see a blank screen during the navigation.
+        this.setState({ reloading: true });
       }
       return;
     }

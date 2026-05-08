@@ -1,68 +1,57 @@
-## Fix the white screen (hydration mismatch in TanStack root)
+# Fix stale "Not Found" chunk recovery
 
-The white screen is caused by `<ClientOnly>` in `src/routes/__root.tsx` rendering a `<div />` fallback on the server pass and `<App />` on the client — React throws the whole tree on mismatch. The fix is to stop conditionally rendering at the root and let a single client-mounted gate inside the splat route own the hydration boundary.
+## Context (corrected)
+- `locus.legal` = production (real users).
+- `lexleaks.com` = private staging (just you).
+- Two domains serving two deployments is **intentional** — not split-brain.
+- The "Not Found" you keep seeing is on **lexleaks.com while iterating**, i.e. the classic post-publish stale-chunk pattern. Real users on `locus.legal` would hit the same bug whenever you promote a build, so it's still worth fixing properly.
 
-### 1. `src/routes/__root.tsx`
-- Remove the `ClientOnly` import and the `<ClientOnly fallback={<div />}><App /></ClientOnly>` wrapper.
-- Remove the `lazy(() => import("../App"))` import — `App` will be mounted by `$.tsx` instead.
-- Inside `<div id="root">`, render `<Outlet />` directly (drop the `<App />` line entirely; `Outlet` is already there).
-- Add `suppressHydrationWarning` to `<body>` as a safety net for the FB pixel + analytics scripts.
-- Add `notFoundComponent` and `errorComponent` to `createRootRoute` (currently missing — required by our TanStack rules).
-- Keep everything else exactly as-is: all `<head>` meta, font preloads, inline `@font-face` CSS, FB pixel script, JSON-LD, `<HeadContent />`, `<noscript>` pixel in body, `<ClientBootstrap />`, `<Scripts />`, and the existing `head: () => ({...})` block on the route.
+## Real problems to fix
+1. **One-shot reload guard is too strict.** `chunkRecovery.ts` uses a `sessionStorage` flag that allows exactly **one** reload per session. After that, every subsequent chunk failure is silently suppressed and the boundary renders `null` forever.
+2. **`ChunkErrorBoundary` returns `null` after suppression.** When recovery is suppressed, the user is left with a blank screen instead of a usable fallback.
+3. **`prefetchCommonRoutes()` swallows errors.** A failed background prefetch deletes the key but never routes the error into `tryRecoverFromChunkError`. Only `prefetchRoute` (hover prefetch) does that.
+4. **Leftover cross-domain plumbing.** Not breaking anything, but stale and confusing. Worth cleaning while we're in here.
 
-### 2. `src/routes/$.tsx`
-Replace the `() => null` component with a real splat that mounts the legacy `App` (which still owns the react-router-dom tree) only after client hydration:
+## Changes
 
-```tsx
-import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, lazy, Suspense } from "react";
+### 1. `src/lib/chunkRecovery.ts` — allow up to 2 reloads per session
+- Replace the boolean `RELOAD_FLAG` with a **counter** in `sessionStorage` (`locus_chunk_reload_count`).
+- Allow up to **2** reloads per session. Third+ failure → return `false` so the boundary renders the styled fallback instead.
+- Keep the cache-busting `?v=<timestamp>` query param.
+- Export a new helper `getReloadAttempts(): number` so the boundary can decide between "silently reloading" and "show fallback".
 
-const App = lazy(() => import("../App"));
+### 2. `src/components/ChunkErrorBoundary.tsx` — never render null forever
+- When a chunk error is caught:
+  - If `tryRecoverFromChunkError` returned `true` → render a small "Reloading…" placeholder (matches `RouteSkeleton` styling), not `null`. This avoids a flash of blank screen during the reload.
+  - If it returned `false` (limit reached) → render the styled fallback with a manual Reload button **and** a "Go home" link. Reload button should clear the session counter so the user gets a fresh 2 attempts.
+- For non-chunk errors, keep the existing branded fallback.
 
-export const Route = createFileRoute("/$")({
-  component: SplatRoute,
-});
+### 3. `src/lib/prefetch.ts` — route prefetch failures through recovery
+- In `prefetchCommonRoutes()`'s `run()` loop, change the `catch {}` to call `tryRecoverFromChunkError(err)` (same pattern as `prefetchRoute`). Background prefetch failures are the **earliest** signal that the deployed bundle no longer matches the user's HTML — using them proactively means users get bounced to the fresh build before they ever click.
 
-function SplatRoute() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return null;
-  return <Suspense fallback={null}><App /></Suspense>;
-}
+### 4. Cleanup of stale cross-domain code in `src/App.tsx`
+- Remove the `locuslegal.lovable.app → locus.legal` redirect block (host no longer exists; the published Lovable URL now redirects to `lexleaks.com`).
+- Leave the `post_oauth_redirect` and implicit-flow `#access_token=` rescuers — those are still correct and host-agnostic.
+
+### 5. (Optional, flagged for your decision) `index.html` canonical
+- The HTML still emits `<link rel="canonical" href="https://locus.legal/" />` even when served from lexleaks.com. That's actually what you want for SEO — Google should index `locus.legal`, not the staging host. **No change recommended.** Just calling it out so you know it's intentional, not a bug.
+
+## Files
+
+```text
+src/lib/chunkRecovery.ts            EDIT  — counter-based reload guard + getReloadAttempts()
+src/components/ChunkErrorBoundary.tsx  EDIT  — render placeholder mid-reload, fallback after limit
+src/lib/prefetch.ts                 EDIT  — route prefetchCommonRoutes errors through recovery
+src/App.tsx                         EDIT  — remove dead locuslegal.lovable.app redirect
 ```
 
-### 3. `src/routes/index.tsx`
-Make `/` render the same client-only `App` mount so the home page isn't blank. Simplest and TS-safe: duplicate the splat pattern rather than redirect (TanStack's `redirect({ to: "/$" })` is awkward for splat targets):
+## Out of scope
+- No changes to `useVersionCheck` (it works correctly per-host).
+- No changes to routing library (still react-router-dom).
+- No service-worker / PWA changes.
+- No production deploy changes — this all lives in client code and ships with the next publish.
 
-```tsx
-import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, lazy, Suspense } from "react";
-
-const App = lazy(() => import("../App"));
-
-export const Route = createFileRoute("/")({
-  component: IndexRoute,
-});
-
-function IndexRoute() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return null;
-  return <Suspense fallback={null}><App /></Suspense>;
-}
-```
-
-### 4. `vite.config.ts`
-No change. Verify `tanstackStart({ spa: { enabled: true }, ... })` remains in plugins.
-
-### Import source note
-Your pasted prompt uses `@tanstack/react-start` for `createRootRoute`/`createFileRoute`/`Outlet`. In this project those come from `@tanstack/react-router` (which is what the existing files use). I'll keep `@tanstack/react-router` to avoid breaking the working imports.
-
-### Verification after apply
-1. Hard reload `/` — expect the homepage, not a white screen.
-2. Visit `/auth`, `/the-bar`, `/directory`, `/admin/login` — each should render its react-router-dom page.
-3. Console: no "Hydration failed" / "Text content does not match" errors; no 401s on `/src/...` module fetches.
-4. Refresh on a deep link (e.g. `/admin/login`) — still renders (splat catches it).
-
-### Why this works
-SPA-mode TanStack still runs one server render pass for the route shell. `ClientOnly` deliberately diverges server vs client output — that's the mismatch. Moving the "wait for hydration" gate *inside* a leaf route component (not the root layout) keeps the server and first client render identical (`null`), then swaps in `<App />` on the second render — which is a normal React state transition, not a hydration mismatch.
+## Verification
+- After implementation, on lexleaks.com: trigger a chunk error (simulate by renaming a file in DevTools network blocklist) → confirm silent reload happens, capped at 2.
+- Force a 3rd failure → confirm styled fallback renders with working Reload + Go home buttons.
+- Confirm `prefetchCommonRoutes()` failures also trigger the recovery path (check Network tab after a publish).

@@ -54,45 +54,23 @@ export default function ApplicationTracker() {
   const [prefill, setPrefill] = useState<{ firm?: string | null; role?: string | null; notes?: string | null }>({});
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Auth — subscribe first, give the session ~1.2s to hydrate before bouncing.
+  // Auth
   useEffect(() => {
     let mounted = true;
-    let redirectTimer: number | null = null;
-    let resolved = false;
-
-    const goAuth = () => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
-      navigate("/auth?redirect=/applications");
-    };
-
+      if (!session) {
+        navigate("/auth?redirect=/applications");
+        return;
+      }
+      setUserId(session.user.id);
+      setAuthReady(true);
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
-      if (!mounted) return;
-      if (s) {
-        resolved = true;
-        if (redirectTimer) { window.clearTimeout(redirectTimer); redirectTimer = null; }
-        setUserId(s.user.id);
-        setAuthReady(true);
-      } else if (resolved) {
-        goAuth();
-      }
+      if (!s) navigate("/auth?redirect=/applications");
+      else setUserId(s.user.id);
     });
-
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      if (session) {
-        resolved = true;
-        setUserId(session.user.id);
-        setAuthReady(true);
-      } else {
-        redirectTimer = window.setTimeout(() => { if (!resolved) goAuth(); }, 1200);
-      }
-    });
-
-    return () => {
-      mounted = false;
-      if (redirectTimer) window.clearTimeout(redirectTimer);
-      subscription.unsubscribe();
-    };
+    return () => { mounted = false; subscription.unsubscribe(); };
   }, [navigate]);
 
   const refresh = async () => {

@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { reloadOnce } from "@/lib/chunkRecovery";
 
 /**
  * Polls /version.json and fires `onUpdateAvailable` when the deployed build
@@ -81,6 +80,16 @@ export function useVersionCheck(
       typeof __BUILD_VERSION__ !== "undefined" ? __BUILD_VERSION__ : null;
     if (!currentVersion) return;
 
+    const forceReload = () => {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("v", Date.now().toString());
+        window.location.replace(url.toString());
+      } catch {
+        window.location.reload();
+      }
+    };
+
     const check = async () => {
       if (firedRef.current) return;
       try {
@@ -94,53 +103,17 @@ export function useVersionCheck(
         if (!res.ok) return;
         const data = (await res.json()) as { version?: string };
         if (!data?.version) return;
-        if (data.version === currentVersion) {
-          // Build matches — strip lingering ?v= and clear the cachebust flag
-          // so future legitimate reloads aren't misclassified.
-          try {
-            const url = new URL(window.location.href);
-            if (url.searchParams.has("v")) {
-              url.searchParams.delete("v");
-              const next = url.pathname + (url.search ? url.search : "") + url.hash;
-              window.history.replaceState(window.history.state, "", next);
-            }
-          } catch { /* ignore */ }
-          try { sessionStorage.removeItem("locus_recent_cachebust"); } catch { /* ignore */ }
-          return;
-        }
-
-      // Skip auto-reload while the user is on an auth-sensitive screen or
-      // mid-OAuth roundtrip. Forcing a reload here can race setSession and
-      // produce a flash mid-login. The next navigation re-runs the check.
-      const path = window.location.pathname;
-      const authPath =
-        path === "/auth" ||
-        path === "/reset-password" ||
-        path === "/choose-username" ||
-        path.startsWith("/admin/login");
-      const oauthInFlight =
-        window.location.hash.includes("access_token=") ||
-        (() => {
-          try { return !!sessionStorage.getItem("post_oauth_redirect"); }
-          catch { return false; }
-        })();
-      if (authPath || oauthInFlight) return;
+        if (data.version === currentVersion) return;
 
         firedRef.current = true;
 
-        // If we already have a stale-version hint (?v=… still in the URL, or
-        // we just came back from a cache-buster reload that main.tsx cleaned
-        // up) and the build STILL doesn't match, the HTML itself is being
-        // served stale. Route through chunkRecovery's counter so we can't
-        // infinite-loop. If exhausted, fall back to the manual toast.
+        // If we already have a stale-version hint in the URL (?v=...) and the
+        // build STILL doesn't match, it means the HTML itself is being served
+        // stale by a CDN. In that case, hard-reload immediately rather than
+        // showing a toast that asks the user to click refresh.
         const params = new URLSearchParams(window.location.search);
-        let recentCachebust = false;
-        try { recentCachebust = sessionStorage.getItem("locus_recent_cachebust") === "1"; }
-        catch { /* ignore */ }
-        if (params.has("v") || recentCachebust) {
-          if (!reloadOnce()) {
-            callbackRef.current();
-          }
+        if (params.has("v")) {
+          forceReload();
           return;
         }
 
@@ -150,12 +123,10 @@ export function useVersionCheck(
       }
     };
 
-    // Defer the FIRST check by one frame so any pending route-level
-    // navigate() (e.g. AppHome → /auth) commits first. That way the
-    // auth-path skip kicks in cleanly and we don't append ?v=… to /auth.
-    const firstCheckId = window.requestAnimationFrame(() => {
-      window.setTimeout(check, 0);
-    });
+    // Run the FIRST check immediately on load (not after 5s). This is the
+    // change that actually catches users opening the site fresh on a stale
+    // CDN edge — they'll be auto-redirected with a cache-buster.
+    check();
 
     const interval = window.setInterval(check, intervalMs);
     const onFocus = () => check();
@@ -166,7 +137,6 @@ export function useVersionCheck(
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      window.cancelAnimationFrame(firstCheckId);
       window.clearInterval(interval);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);

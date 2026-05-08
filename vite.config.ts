@@ -7,7 +7,6 @@ import path from "path";
 import { writeFileSync, mkdirSync } from "fs";
 import { componentTagger } from "lovable-tagger";
 import { visualizer } from "rollup-plugin-visualizer";
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 
 const BUILD_VERSION = Date.now().toString();
 
@@ -24,7 +23,7 @@ function writeVersionJsonPlugin(): Plugin {
         writeFileSync(
           path.join(outDir, "version.json"),
           JSON.stringify({ version: BUILD_VERSION }),
-          "utf-8",
+          "utf-8"
         );
       } catch (e) {
         console.warn("[write-version-json] failed:", e);
@@ -46,26 +45,12 @@ export default defineConfig(({ mode }) => ({
     __BUILD_VERSION__: JSON.stringify(BUILD_VERSION),
   },
   plugins: [
-    {
-      enforce: "pre" as const,
-      ...mdx({
-        jsxRuntime: "automatic",
-        development: false,
-        providerImportSource: "@mdx-js/react",
-        remarkPlugins: [remarkGfm],
-        rehypePlugins: [rehypeSlug],
-      }),
-    } as Plugin,
-    // TanStack Start: SPA mode — no SSR, no prerender. Provides the routing
-    // shell Lovable hosting needs to serve any URL (fixes deep-link 404s)
-    // while the existing react-router-dom app inside renders the actual UI.
-    tanstackStart({
-      spa: { enabled: true },
-      router: { generatedRouteTree: "./src/routeTree.gen.ts" },
-    }),
+    { enforce: "pre" as const, ...mdx({ jsxRuntime: "automatic", development: false, providerImportSource: "@mdx-js/react", remarkPlugins: [remarkGfm], rehypePlugins: [rehypeSlug] }) } as Plugin,
     react(),
     mode === "development" && componentTagger(),
     writeVersionJsonPlugin(),
+    // Bundle size report. Enabled with `bun run build --mode analyze`.
+    // Writes dist/stats.html — open it locally to inspect chunk sizes.
     mode === "analyze" &&
       (visualizer({
         filename: "dist/stats.html",
@@ -77,6 +62,8 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "react": path.resolve(__dirname, "./node_modules/react"),
+      "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
     },
   },
   build: {
@@ -85,6 +72,9 @@ export default defineConfig(({ mode }) => ({
     sourcemap: false,
     rollupOptions: {
       output: {
+        // Split heavy/stable vendor code into its own long-cacheable chunks
+        // so the home page's main bundle stays small and repeat visitors only
+        // re-download app code on each deploy.
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
           if (
