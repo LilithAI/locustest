@@ -1,76 +1,95 @@
-## Fix plan: make live routing behave like preview
+## What's actually broken
 
-### What’s actually broken
-- **Preview works** because the dev server always boots the client app and lets `react-router-dom` handle URLs in memory.
-- **Live breaks** because direct requests like `/auth`, `/app`, and `/tools/cv-analyser` are returning a **server-level 404 before React starts**.
-- I verified this is **not limited to CV Analyser**:
-  - `/` returns 200
-  - `/auth` returns 404
-  - `/app` returns 404
-  - `/tools/cv-analyser` returns 404
-- The repo confirms why:
-  - there is **no `src/routes/`**
-  - `src/App.tsx` uses **`BrowserRouter` + `react-router-dom`**
-  - the added `public/_redirects` is being **ignored** in this setup, so it cannot be the permanent fix here
+Every deep link returns "Not Found" on the **published** site — confirmed on the Lovable URL `locustest.lovable.app` (and same was true on `lexleaks.com` before you removed it):
 
-### Root cause
-This app is still built as an older **client-side Vite SPA**, while the published environment expects route handling to come from the app’s actual route architecture. Right now only `/` is guaranteed to boot. Any direct deep link dies at the host layer.
+```
+200  /                  ✅ works
+404  /auth              ❌
+404  /app               ❌
+404  /tools             ❌
+404  /tools/cv-analyser ❌
+404  /applications      ❌
+404  /admin             ❌
+```
 
-## Permanent fix
-### 1) Stop treating this like a pure client-side SPA
-- Replace the `BrowserRouter` route table in `src/App.tsx` with proper **TanStack Start file-based routes** under `src/routes/`
-- Keep all existing public URLs unchanged:
-  - `/auth`
-  - `/app`
-  - `/applications`
-  - `/tools`
-  - `/tools/cv-analyser`
-  - `/admin/*`
-  - etc.
+Removing the custom domain doesn't help — the published Lovable URL has the exact same problem. So this is **not** a domain issue, **not** a Google issue. Google sign-in itself works fine — the broker delivers the token to `/#access_token=...`, the rescuer in `App.tsx` consumes it and tries to redirect to `/app`. Then `/app` 404s at the host before React even loads.
 
-### 2) Create the proper route shell
-- Add:
-  - `src/routes/__root.tsx`
-  - `src/routes/index.tsx`
-  - route files for each current page path
-- Move shared wrappers into the root/layout route:
-  - theme provider
-  - query client
-  - toasts
-  - command palette
-  - chunk/version/session helpers where appropriate
+This is a **published hosting** issue.
 
-### 3) Migrate route behavior without changing product behavior
-- Preserve the current screens and route URLs
-- Recreate nested admin routing using route layout files instead of nested `react-router-dom` config
-- Convert redirects like:
-  - `/vacancies` → `/opportunities`
-  - `/opportunities-preview` → `/opportunities`
-  - admin nested redirects
+## Root cause
 
-### 4) Add correct not-found/error handling
-- Add a root `notFoundComponent` so unknown URLs render the app’s styled 404 instead of failing invisibly
-- Add route error boundaries where loaders or protected views need them
+Lovable's published hosting serves SPA fallback automatically **for TanStack Start projects** (its native stack). This project is the older pattern:
 
-### 5) Remove the dead-end workaround
-- Remove `public/_redirects` after migration since it is not the correct mechanism here
-- Remove the `react-router-dom` bootstrap once all routes are migrated
+- `react-router-dom` + `<BrowserRouter>` in `src/App.tsx`
+- `src/pages/*` page files
+- No `src/routes/` directory, no file-based routing
 
-### 6) Validate every affected live URL path
-After migration, verify deep linking behavior for:
-- `/auth`
-- `/app`
-- `/applications`
-- `/tools/cv-analyser`
-- `/admin`
-- `/admin/opportunities`
-- a fake route to confirm the styled 404 appears
+So the host has no idea `/auth` is an app route — it looks for a file, doesn't find one, returns its plain-text 404. The `public/_redirects` file is ignored. The `dist/404.html` plugin we added is also ignored on this hosting tier. In preview the dev server always serves `index.html`, which is why **everything works in preview but breaks the moment you publish**.
 
-## Expected outcome
-- Refreshing any real route on the live site will open the correct page
-- Links opened in a new tab will work
-- login redirects will stop landing on host-level 404s
-- the same routing behavior will exist in preview and production
+## Fix: migrate to TanStack Start file-based routes
 
-## Technical note
-This is **not a CV page bug** and **not an auth-only bug**. It is a routing architecture mismatch. The reason the earlier fix appeared plausible is that the symptom looked like a classic SPA fallback problem, but the evidence here shows the right permanent remedy is to migrate this app to the route system the published environment actually expects.
+This is the only permanent fix. The migration is mechanical — every existing page becomes a route file, business logic stays the same.
+
+### Step 1 — Add the TanStack Start shell
+- Create `src/routes/__root.tsx` with the providers currently wrapping `<BrowserRouter>` (ThemeProvider, QueryClientProvider, TooltipProvider, Toasters, VersionWatcher, IdlePrefetcher, SessionKeepAlive, MetaPixelTracker, CommandPaletteProvider, ChunkErrorBoundary, Suspense, CommandPalette, SearchFab) plus a root `notFoundComponent`.
+- Create `src/router.tsx` and update `vite.config.ts` to register the TanStack Start Vite plugin so `routeTree.gen.ts` is auto-generated.
+- Move the existing OAuth hash-rescuer (consumes `#access_token=...` then redirects) into a tiny client-only component mounted in `__root.tsx` instead of running at module top-level in `App.tsx`.
+
+### Step 2 — Convert every existing route to a route file
+For each route currently declared in `App.tsx`:
+
+| Current URL | New route file |
+| --- | --- |
+| `/` | `src/routes/index.tsx` |
+| `/auth` | `src/routes/auth.tsx` |
+| `/reset-password` | `src/routes/reset-password.tsx` |
+| `/choose-username` | `src/routes/choose-username.tsx` |
+| `/app` | `src/routes/app.tsx` |
+| `/waitlist`, `/directory`, `/directory/firms/$slug`, `/demofirminteligence`, `/playbook`, `/playbook/$slug`, `/resources`, `/tools`, `/tools/cv-analyser`, `/the-bar`, `/the-bar/preview`, `/the-bar/browse`, `/the-bar/challenge/$id`, `/the-bar/history`, `/the-bar/leaderboard`, `/applications`, `/profile/edit`, `/u/$username`, `/opportunities`, `/dock-lab`, `/tour-lab`, `/beta`, `/beta/round-2`, `/unsubscribe` | matching `src/routes/...tsx` files |
+| All `/admin/*` URLs | `src/routes/admin/*` under a layout that wraps `AdminLayout` |
+| `/vacancies`, `/admin/vacancies`, `/opportunities-preview` | `beforeLoad` `redirect()` to canonical URL in those route files |
+
+Each route file:
+- Uses `createFileRoute("/path")({ component: ExistingPageComponent })`
+- Imports the existing page from `@/pages/...` so component code is **not rewritten**
+- Wraps shared layout via the `Layout` component (or moves `Layout` into a pathless `_layout.tsx`)
+
+### Step 3 — Replace `react-router-dom` usage in components
+Search/replace across the codebase (mechanical — same APIs exist in TanStack Router):
+- `useNavigate` → from `@tanstack/react-router`
+- `useLocation` / `useSearchParams` → `useLocation` / `useSearch`
+- `<Link to="...">` → from `@tanstack/react-router`
+- `<Navigate to="..." replace />` → throw `redirect({ to: "..." })` in `beforeLoad`
+
+Page logic, Supabase calls, UI all stay intact.
+
+### Step 4 — Strip the dead workarounds
+- Remove `<BrowserRouter>` and the route table from `src/App.tsx` (App.tsx becomes obsolete — the root is now `__root.tsx`).
+- Remove `public/_redirects`.
+- Remove the `spaFallbackPlugin()` 404.html copy from `vite.config.ts`.
+- Remove `react-router-dom` from `package.json`.
+
+### Step 5 — Verify end-to-end after publishing
+- `curl -I https://locustest.lovable.app/auth` → 200
+- `curl -I https://locustest.lovable.app/tools/cv-analyser` → 200
+- `curl -I https://locustest.lovable.app/app` → 200
+- Sign in with Google → lands on `/app` rendered, no "Not Found" flash
+- Hard-refresh on `/tools/cv-analyser`, `/applications`, `/admin/opportunities` → the page renders, not the host 404
+- Once verified, you can safely re-attach the custom domain — it will inherit the working routing.
+
+## Why this is the right call (and not another patch)
+
+- `_redirects` file: ignored by this hosting tier — already proven.
+- The `404.html` Vite plugin: ignored too — even the freshly-published build returns the host's plain-text "Not Found" on every deep link.
+- `HashRouter`: would work but breaks every existing shared link, every email link, every Google-indexed URL, and the OAuth callback URL pattern.
+- TanStack Start file routes: this is the routing system Lovable hosting is **designed** to serve. Deep links, hard refreshes, OAuth callbacks, and shared URLs all just work — that's literally what the hosting layer does for it.
+
+## Scope honesty
+
+This is a real migration touching every page and the router shell, but it's mechanical:
+- Page component code: unchanged
+- Supabase / auth / business logic: unchanged
+- Styling, UI, design system: unchanged
+- Only the routing wiring changes
+
+After it ships once, the entire class of "works in preview, broken on live" 404 problems is gone for good — on the Lovable domain and on any custom domain you reattach later.
