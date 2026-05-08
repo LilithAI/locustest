@@ -91,33 +91,8 @@ export default function Auth() {
     else toast.success("Password reset link sent to your email.");
   };
 
-  const handleGoogleSignIn = async () => {
-    setLoading(true);
-    try {
-      void track("signup_started", { method: "google" });
-      // Remember where to land after the broker sets the session.
-      sessionStorage.setItem("post_oauth_redirect", postLoginPath);
-
-      const result = await lovable.auth.signInWithOAuth("google", {
-        // Root origin — the Lovable broker owns /~oauth/* on this domain.
-        redirect_uri: window.location.origin,
-      });
-
-      if (result?.redirected) return; // browser is leaving for Google
-      if (result?.error) {
-        toast.error(result.error.message || "Failed to sign in with Google");
-        return;
-      }
-
-      // Tokens already set on the supabase client → go to intended page.
-      const next = sessionStorage.getItem("post_oauth_redirect") || "/app";
-      sessionStorage.removeItem("post_oauth_redirect");
-      navigate(next);
-    } catch (err: any) {
-      toast.error(err.message || "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
+  const handleGoogleSignIn = () => {
+    toast.info("Google sign-in is coming soon — please use email for now.");
   };
 
   return (
