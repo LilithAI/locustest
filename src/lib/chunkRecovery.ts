@@ -77,3 +77,15 @@ export function tryRecoverFromChunkError(err: unknown): boolean {
   if (!isChunkLoadError(err)) return false;
   return reloadOnce();
 }
+
+/**
+ * Whether another silent reload is still allowed this session.
+ * Used by ChunkErrorBoundary to anticipate recovery in
+ * getDerivedStateFromError, so we render the "Loading latest version…"
+ * placeholder immediately instead of flashing the styled fallback during
+ * React's commit transition.
+ */
+export function canReload(): boolean {
+  if (typeof window === "undefined") return false;
+  return getReloadAttempts() < MAX_RELOADS;
+}

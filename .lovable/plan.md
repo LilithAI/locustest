@@ -1,45 +1,76 @@
 ## Goal
-Create a complete, downloadable backup of the current Lovable Cloud backend so you have a cold standby on your laptop. No changes to the live project.
+Eliminate the brief "Not Found" / styled-fallback flash during chunk recovery, and prevent the version-check force-reload from infinite-looping when a CDN keeps serving a stale shell.
 
-## What gets backed up
+## Fix #1 — Anticipate chunk recovery in the error boundary
 
-| Component | Method | File |
-|---|---|---|
-| Database schema (tables, enums, functions, triggers, RLS) | `pg_dump --schema-only` | `schema.sql` |
-| Database data (all rows in `public` schema) | `pg_dump --data-only` | `data.sql` |
-| Auth users (incl. encrypted password hashes, identities) | `pg_dump` of `auth.users` + `auth.identities` | `auth_users.sql` |
-| Storage files — `avatars`, `cvs`, `bar-sources`, `beta-screenshots` | Download via Supabase JS client, zip per bucket | `storage/<bucket>.zip` |
-| Edge Functions code (28 functions) | Already in repo under `supabase/functions/` — copy snapshot | `edge-functions.zip` |
-| Secrets (names only, NOT values) | List from `fetch_secrets` | `secrets-inventory.txt` |
-| Storage bucket config (names, public flags) | JSON dump | `buckets.json` |
-| Restore instructions | Markdown file | `RESTORE.md` |
+**`src/lib/chunkRecovery.ts`** — append a new export:
 
-All packaged into a single `locus-backup-YYYY-MM-DD.zip` in `/mnt/documents/` for download.
+```ts
+/**
+ * Whether another silent reload is still allowed this session.
+ * Used by ChunkErrorBoundary to anticipate recovery in
+ * getDerivedStateFromError, so we render the "Loading latest version…"
+ * placeholder immediately instead of flashing the styled fallback during
+ * React's commit transition.
+ */
+export function canReload(): boolean {
+  if (typeof window === "undefined") return false;
+  return getReloadAttempts() < MAX_RELOADS;
+}
+```
 
-## Steps
+**`src/components/ChunkErrorBoundary.tsx`**:
 
-1. **Verify Cloud is healthy** — `supabase--cloud_status` before dumping.
-2. **Schema dump** — `pg_dump` against `SUPABASE_DB_URL`, schema-only, `public` + `auth` schemas.
-3. **Data dump** — same DB, data-only, `public` schema. `auth.users` + `auth.identities` dumped separately so they're easy to restore selectively.
-4. **Storage download** — script using service role key to list every object in each of the 4 buckets, download to `/tmp/storage/<bucket>/`, then zip.
-5. **Edge functions snapshot** — zip `supabase/functions/` from the repo as-is.
-6. **Inventory** — write `secrets-inventory.txt` with secret names you'll need to recreate manually (values can never leave Lovable).
-7. **Write `RESTORE.md`** — exact commands to spin this up in a personal Supabase project later (create project → run schema.sql → run auth_users.sql → run data.sql → upload storage files → redeploy edge functions → re-add secrets).
-8. **Bundle + checksum** — single zip with SHA256 hash printed in chat.
+- Add `canReload` to the existing import from `@/lib/chunkRecovery`.
+- Replace `getDerivedStateFromError` so it predicts recovery on the first commit:
 
-## What to know before you click "Implement plan"
+  ```ts
+  static getDerivedStateFromError(error: Error): State {
+    const willReload = isChunkLoadError(error) && canReload();
+    return { error, reloading: willReload };
+  }
+  ```
 
-- **Password hashes** restore cleanly into another Supabase project (bcrypt). Users keep their passwords on a restored copy.
-- **Storage download size**: I'll measure first. If `cvs` or `beta-screenshots` is huge (>500 MB), I'll ask before zipping into one file vs splitting.
-- **Secrets values** — Lovable doesn't expose them to me even with `fetch_secrets`. You'll need to copy `FIRECRAWL_API_KEY` and any others manually if you ever restore. Lovable-managed ones (`SUPABASE_*`, `LOVABLE_API_KEY`) regenerate automatically on a new project.
-- **No changes to your live database.** This is read-only.
-- **This is a one-time snapshot.** Re-run anytime you want a fresh backup — same script.
+- Update `componentDidCatch` to correct state if the actual reload was suppressed (limit hit, sessionStorage write blocked, etc.):
 
-## Technical details
+  ```ts
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    if (isChunkLoadError(error)) {
+      const triggered = tryRecoverFromChunkError(error);
+      if (!triggered) {
+        this.setState({ reloading: false });
+      }
+      return;
+    }
+    console.error("[ChunkErrorBoundary]", error, info);
+  }
+  ```
 
-- Uses `psql`/`pg_dump` already in the sandbox, `SUPABASE_DB_URL` env var (already set).
-- Storage downloads use `@supabase/supabase-js` with `SUPABASE_SERVICE_ROLE_KEY` (already a secret). For the `avatars` public bucket, anon key would work, but service role handles all 4 uniformly.
-- Output folder: `/mnt/documents/locus-backup-2026-05-08/` plus the final zip alongside it.
-- I'll use `code--exec` for everything; no project files modified.
+## Fix #2 — Loop guard on version-check force-reload
 
-Approve and I'll run it end-to-end.
+**`src/hooks/useVersionCheck.ts`**:
+
+- Add `import { reloadOnce } from "@/lib/chunkRecovery";`.
+- Delete the inline `forceReload` helper (the `const forceReload = () => { ... }` block, ~lines 83–91).
+- Replace the `if (params.has("v"))` branch inside `check()` with:
+
+  ```ts
+  // If we already have a stale-version hint in the URL (?v=...) and the
+  // build STILL doesn't match, the HTML itself is being served stale by a
+  // CDN edge. Route through chunkRecovery's counter so we can't infinite-
+  // loop if the CDN keeps serving the old shell. If the counter is
+  // exhausted, fall back to the manual toast.
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("v")) {
+    if (!reloadOnce()) {
+      callbackRef.current();
+    }
+    return;
+  }
+
+  callbackRef.current();
+  ```
+
+## Scope
+- Only the three files above. No refactors elsewhere, no UI changes.
+- Behavior is invisible in the happy path; verified by forcing a chunk error in DevTools (block a chunk URL → navigate) and confirming "Loading latest version…" shows with no flash and no blank screen.
