@@ -180,7 +180,73 @@ const MetaPixelTracker = () => {
   return null;
 };
 
-const App = () => (
+const App = () => {
+  // Synchronously check before anything renders. If we are mid-OAuth, block
+  // route mounting entirely until tokens are exchanged + URL is cleaned.
+  const [oauthInFlight, setOauthInFlight] = useState(() => detectOAuthInFlight());
+
+  useEffect(() => {
+    if (!oauthInFlight) return;
+
+    const finish = (next: string) => {
+      try {
+        sessionStorage.removeItem("post_oauth_redirect");
+      } catch {}
+      // Strip any token hash before leaving so the destination route never
+      // sees `#access_token=...` in the URL.
+      try {
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+      } catch {}
+      const safe = next && next.startsWith("/") && !next.startsWith("//") ? next : "/app";
+      window.location.replace(safe);
+    };
+
+    // Case 1: implicit-flow tokens in the hash.
+    if (window.location.hash.includes("access_token=")) {
+      const params = new URLSearchParams(window.location.hash.slice(1));
+      const access_token = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+      if (access_token && refresh_token) {
+        const stashed = (() => {
+          try { return sessionStorage.getItem("post_oauth_redirect"); } catch { return null; }
+        })();
+        void supabase.auth
+          .setSession({ access_token, refresh_token })
+          .finally(() => finish(stashed || "/app"));
+        return;
+      }
+    }
+
+    // Case 2: broker dropped us back at root with a stashed redirect.
+    let cancelled = false;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      const stashed = (() => {
+        try { return sessionStorage.getItem("post_oauth_redirect"); } catch { return null; }
+      })();
+      if (data.session && stashed) {
+        finish(stashed);
+      } else {
+        // No session yet (user cancelled, or stale key) — clear and unblock.
+        try { sessionStorage.removeItem("post_oauth_redirect"); } catch {}
+        setOauthInFlight(false);
+      }
+    });
+
+    // Safety: never block the UI for more than 8s.
+    const timeout = window.setTimeout(() => {
+      if (!cancelled) setOauthInFlight(false);
+    }, 8000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [oauthInFlight]);
+
+  if (oauthInFlight) return <OAuthCallbackLoader />;
+
+  return (
   <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
