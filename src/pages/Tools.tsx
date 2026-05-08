@@ -17,14 +17,18 @@ const TABS: { id: ToolType; num: string; label: string }[] = [
   { id: "tos", num: "06", label: "Terms of Service" },
 ];
 
-const CATEGORIES: { id: CategoryType; label: string; count: number }[] = [
-  { id: "All", label: "All Tools", count: 11 },
-  { id: "Firms", label: "Firms & Chambers", count: 4 },
-  { id: "Startups", label: "Startups & Founders", count: 3 },
-  { id: "Creators", label: "Artists & Musicians", count: 2 },
-  { id: "Students", label: "Students & Schools", count: 3 },
-  { id: "SMBs", label: "Small Companies", count: 3 },
+const CATEGORY_DEFS: { id: CategoryType; label: string }[] = [
+  { id: "All", label: "All Tools" },
+  { id: "Firms", label: "Firms & Chambers" },
+  { id: "Startups", label: "Startups & Founders" },
+  { id: "Creators", label: "Artists & Musicians" },
+  { id: "Students", label: "Students & Schools" },
+  { id: "SMBs", label: "Small Companies" },
 ];
+const CATEGORIES = CATEGORY_DEFS.map((c) => ({
+  ...c,
+  count: c.id === "All" ? TOOL_CATALOG.length : TOOL_CATALOG.filter((t) => t.categories.includes(c.id)).length,
+}));
 
 const JURISDICTIONS = [
   { label: "India — DPDPA 2023", active: true },
