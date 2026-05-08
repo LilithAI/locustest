@@ -1,53 +1,44 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { ThemeProvider } from "next-themes";
 import { supabase } from "@/integrations/supabase/client";
 
-if (typeof window !== "undefined") {
-
-  // After the Lovable OAuth broker drops us back on the redirect_uri (root
-  // origin), forward to the page the user was trying to reach before sign-in.
-  // The broker reloads the browser, so the navigate() call inside Auth.tsx
-  // never gets to run — this rescuer reads the stashed path and bounces.
+// Detect synchronously, before any router mounts, whether we are in the
+// middle of an OAuth callback. If so, we render a loader instead of the
+// route tree — otherwise a protected page (e.g. /app) would mount for one
+// frame with `#access_token=...` still in the URL, and any chunk-load hiccup
+// during the immediately-following window.location.replace() would land the
+// user on the NotFound fallback.
+function detectOAuthInFlight(): boolean {
+  if (typeof window === "undefined") return false;
   try {
+    if (window.location.hash.includes("access_token=")) return true;
     const stashed = sessionStorage.getItem("post_oauth_redirect");
+    // Only treat a stashed redirect as in-flight if we landed back at the
+    // origin root — otherwise a stale key would block normal navigation.
     if (
       stashed &&
       stashed.startsWith("/") &&
       !stashed.startsWith("//") &&
-      window.location.pathname !== stashed &&
-      !window.location.hash.includes("access_token=")
+      window.location.pathname === "/" &&
+      window.location.pathname !== stashed
     ) {
-      void supabase.auth.getSession().then(({ data }) => {
-        if (data.session) {
-          sessionStorage.removeItem("post_oauth_redirect");
-          window.location.replace(stashed);
-        }
-      });
+      return true;
     }
   } catch {
     // sessionStorage can throw in private mode — ignore.
   }
-
-  // Rescue legacy Supabase implicit-flow OAuth redirects that land on an
-  // arbitrary path with `#access_token=...` in the hash. Without this, an old
-  // build (or a cached redirect URL) would render the 404 page while leaking
-  // tokens in the URL bar. Consume the tokens, set the session, and bounce to
-  // the intended post-login page.
-  if (window.location.hash.includes("access_token=")) {
-    const params = new URLSearchParams(window.location.hash.slice(1));
-    const access_token = params.get("access_token");
-    const refresh_token = params.get("refresh_token");
-    if (access_token && refresh_token) {
-      void supabase.auth
-        .setSession({ access_token, refresh_token })
-        .finally(() => {
-          const next = sessionStorage.getItem("post_oauth_redirect") || "/app";
-          sessionStorage.removeItem("post_oauth_redirect");
-          window.location.replace(next);
-        });
-    }
-  }
+  return false;
 }
+
+function OAuthCallbackLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-sm text-muted-foreground font-mono">Signing you in…</div>
+    </div>
+  );
+}
+
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner, toast } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
