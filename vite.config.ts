@@ -32,6 +32,27 @@ function writeVersionJsonPlugin(): Plugin {
   };
 }
 
+// Emits dist/404.html as a copy of index.html so Cloudflare Pages' secondary
+// fallback (404.html) also serves the SPA shell for unmatched routes.
+function spaFallbackPlugin(): Plugin {
+  return {
+    name: "spa-fallback",
+    apply: "build",
+    closeBundle() {
+      try {
+        const outDir = path.resolve(__dirname, "dist");
+        const src = path.join(outDir, "index.html");
+        const dest = path.join(outDir, "404.html");
+        const html = readFileSync(src, "utf-8");
+        writeFileSync(dest, html, "utf-8");
+        console.log("[spa-fallback] dist/404.html written");
+      } catch (e) {
+        console.warn("[spa-fallback] failed:", e);
+      }
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
