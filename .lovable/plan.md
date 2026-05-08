@@ -1,39 +1,46 @@
-## What you're actually seeing
+## What happened
 
-The screenshot shows plain monospace `Not Found` on a white background at `/app`. That is **not** our `NotFound.tsx` page (which is styled, dark-themed, has a "Return to Home" link, and logs to console). It is the Lovable preview infrastructure returning a raw text 404 because **the dev sandbox went idle while your PC was locked**.
+You landed on `https://lexleaks.com/auth?v=1778216874835`. The `?v=…` timestamp is **not** a Google/Supabase param — it's our own cache-buster, appended by `reloadOnce()` in `src/lib/chunkRecovery.ts`.
 
-Evidence:
-- `curl http://localhost:8080/app` → `200 OK` right now (the SPA serves fine when the sandbox is awake).
-- Route `/app` is correctly registered in `src/App.tsx` line 209 (`<Route path="/app" element={<AppHome />} />`).
-- The "Not Found" text in the screenshot has no styling, no nav, no footer — our React tree never rendered. If our app had rendered and hit a 404 route, you'd see the styled NotFound page.
-- Preview header shows "Previewing last saved version" — that path is served by the static preview host, which sleeps on idle.
+Trace:
+1. You clicked the Locus tab. The browser served a **stale HTML shell** from the CDN edge (the previous deploy).
+2. `useVersionCheck` ran on first paint, fetched `/version.json`, saw the deployed version ≠ the bundled `__BUILD_VERSION__`.
+3. It called `reloadOnce()` → hard reload with `?v=<timestamp>` to bust the CDN.
+4. The reloaded page is the fresh build. Login worked (auth logs confirm: Google login at 05:09:50 succeeded).
 
-So this is a **third, separate failure mode** from the two we already fixed:
-1. Stale chunk after deploy → fixed by chunkRecovery + ChunkErrorBoundary.
-2. Stale CDN HTML loop → fixed by `reloadOnce()` guard in useVersionCheck.
-3. **Preview sandbox idle-sleep** → returns raw 404 until you refresh once to wake it. This is platform behaviour, not app code.
+So the **login itself is fine**. What you saw was a mid-flight forced reload right as you were trying to sign in. Two real problems with that:
 
-## What to do
+### Problem 1: Version-check reload during the auth/OAuth flow
+If `useVersionCheck` fires while the OAuth broker is mid-redirect (the hash-token rescue in `src/App.tsx`), the reload can race the session-set call and the user sees a flash/blink. Auth still completes here because the rescuer is sync, but it's ugly and on slower networks could interrupt `setSession`.
 
-Two separate things, depending on which surface you actually care about:
+### Problem 2: `?v=` sticks in the URL forever
+After the cache-buster reload succeeds, the `?v=…` stays in the address bar. Looks like spam, and it shows up in shared links / browser history / analytics. Worse, the reload-loop guard in `useVersionCheck` only fires when `?v=` is already present — so a leftover param from yesterday can short-circuit a real new-version reload tomorrow.
 
-### A. Production (lexleaks.com / locustest.lovable.app)
-Nothing to do. Real users on the published site never hit the preview sandbox. The two fixes from earlier already cover the real-world failure modes there.
+## Fix
 
-### B. The Lovable in-editor preview
-The idle-sleep 404 is a Lovable platform behavior — we can't make the sandbox stay awake from app code. The pragmatic options are:
+Two tiny, scoped changes — no auth refactor, no chunkRecovery changes.
 
-1. **Just refresh once.** When you come back, hit the refresh button in the preview header (the circular arrow next to the URL). The sandbox wakes in ~1–2 seconds and the SPA loads.
-2. **Optional: tiny preview-only auto-retry shim** in `index.html` that detects a non-HTML response on first paint and reloads after 1.5s. This would only help inside the editor preview iframe and would do nothing on production. Adds ~15 lines to `index.html`. Low value, but possible.
+### Fix A — Skip version-check on auth-sensitive routes/states
+In `src/hooks/useVersionCheck.ts`, bail out early if any of these are true:
+- pathname is `/auth`, `/reset-password`, or `/choose-username`
+- URL hash contains `access_token=` (legacy implicit OAuth in flight)
+- `sessionStorage` has a `post_oauth_redirect` key (OAuth round-trip pending)
 
-## My recommendation
+Effect: zero auto-reloads while the user is on a login screen or coming back from Google. The next page they navigate to (e.g. `/app`) will re-run the check normally.
 
-Don't add code for this. It's a non-issue on production, and on the editor preview a single manual refresh wakes it. Adding more reload logic risks interfering with the chunk-recovery counter we just stabilized.
+### Fix B — Strip `?v=` from the URL after a successful boot
+In `src/main.tsx` (or the top of `src/App.tsx`, before any router work), if `URLSearchParams` contains `v` AND `__BUILD_VERSION__` matches what's expected, call `history.replaceState` to remove just that param. Other query params untouched. Done once at startup.
 
-If you want option B.2 anyway, say the word and I'll wire it scoped strictly to `id-preview--*.lovable.app` hosts so production is untouched.
+Effect: the cache-buster does its job, then disappears. Address bar stays clean. Reload-loop guard stays accurate (only present when an active reload chain is in progress).
+
+## What we deliberately do NOT change
+- `chunkRecovery.ts` — the 2-attempt counter is correct.
+- `Auth.tsx` — login path is fine; the issue is upstream.
+- `App.tsx` OAuth rescuers — they work; they just shouldn't be racing the version-check.
 
 ## Verification
+1. Open `https://lexleaks.com/auth` directly — no spontaneous `?v=` reload, even if a new deploy went out.
+2. Sign in with Google from a stale tab — login completes without an extra reload mid-flow.
+3. Force a stale shell (block the next deploy's HTML in DevTools, navigate fresh) — get exactly one reload with `?v=`, then the param is gone after the page settles.
 
-- Click the refresh icon in the preview header right now.
-- `/app` should render the styled AppHome page (with nav, dock, etc.) within a couple of seconds.
-- If it still shows raw "Not Found" after a full refresh, that's a different bug and I'll dig deeper.
+Two files: `src/hooks/useVersionCheck.ts`, `src/main.tsx`. ~15 lines each.
