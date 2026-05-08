@@ -4,7 +4,7 @@ import mdx from "@mdx-js/rollup";
 import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import path from "path";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, copyFileSync, existsSync } from "fs";
 import { componentTagger } from "lovable-tagger";
 import { visualizer } from "rollup-plugin-visualizer";
 
@@ -32,6 +32,30 @@ function writeVersionJsonPlugin(): Plugin {
   };
 }
 
+// SPA fallback for static hosts (Cloudflare Pages and friends): copies the
+// built index.html to 404.html so that any unmatched URL — /tools/cv-analyser,
+// /auth, /app, deep links shared on social, OAuth post-login redirects — boots
+// the React app instead of the host returning a bare-text "Not Found".
+// React Router then reads the real URL and renders the right page.
+function spaFallbackPlugin(): Plugin {
+  return {
+    name: "spa-fallback-404",
+    apply: "build",
+    closeBundle() {
+      try {
+        const outDir = path.resolve(__dirname, "dist");
+        const src = path.join(outDir, "index.html");
+        const dest = path.join(outDir, "404.html");
+        if (existsSync(src)) {
+          copyFileSync(src, dest);
+        }
+      } catch (e) {
+        console.warn("[spa-fallback-404] failed:", e);
+      }
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -49,6 +73,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     writeVersionJsonPlugin(),
+    spaFallbackPlugin(),
     // Bundle size report. Enabled with `bun run build --mode analyze`.
     // Writes dist/stats.html — open it locally to inspect chunk sizes.
     mode === "analyze" &&

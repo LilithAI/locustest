@@ -1,54 +1,76 @@
-# Fix every "Not Found" on production deep links — once and for all
+## Fix plan: make live routing behave like preview
 
-## Root cause
+### What’s actually broken
+- **Preview works** because the dev server always boots the client app and lets `react-router-dom` handle URLs in memory.
+- **Live breaks** because direct requests like `/auth`, `/app`, and `/tools/cv-analyser` are returning a **server-level 404 before React starts**.
+- I verified this is **not limited to CV Analyser**:
+  - `/` returns 200
+  - `/auth` returns 404
+  - `/app` returns 404
+  - `/tools/cv-analyser` returns 404
+- The repo confirms why:
+  - there is **no `src/routes/`**
+  - `src/App.tsx` uses **`BrowserRouter` + `react-router-dom`**
+  - the added `public/_redirects` is being **ignored** in this setup, so it cannot be the permanent fix here
 
-The app uses **React Router (`BrowserRouter`)** — pure client-side routing. When you click a `<Link>` inside the app it works fine. But when the browser asks the host directly for a path like:
+### Root cause
+This app is still built as an older **client-side Vite SPA**, while the published environment expects route handling to come from the app’s actual route architecture. Right now only `/` is guaranteed to boot. Any direct deep link dies at the host layer.
 
-- `/tools/cv-analyser`
+## Permanent fix
+### 1) Stop treating this like a pure client-side SPA
+- Replace the `BrowserRouter` route table in `src/App.tsx` with proper **TanStack Start file-based routes** under `src/routes/`
+- Keep all existing public URLs unchanged:
+  - `/auth`
+  - `/app`
+  - `/applications`
+  - `/tools`
+  - `/tools/cv-analyser`
+  - `/admin/*`
+  - etc.
+
+### 2) Create the proper route shell
+- Add:
+  - `src/routes/__root.tsx`
+  - `src/routes/index.tsx`
+  - route files for each current page path
+- Move shared wrappers into the root/layout route:
+  - theme provider
+  - query client
+  - toasts
+  - command palette
+  - chunk/version/session helpers where appropriate
+
+### 3) Migrate route behavior without changing product behavior
+- Preserve the current screens and route URLs
+- Recreate nested admin routing using route layout files instead of nested `react-router-dom` config
+- Convert redirects like:
+  - `/vacancies` → `/opportunities`
+  - `/opportunities-preview` → `/opportunities`
+  - admin nested redirects
+
+### 4) Add correct not-found/error handling
+- Add a root `notFoundComponent` so unknown URLs render the app’s styled 404 instead of failing invisibly
+- Add route error boundaries where loaders or protected views need them
+
+### 5) Remove the dead-end workaround
+- Remove `public/_redirects` after migration since it is not the correct mechanism here
+- Remove the `react-router-dom` bootstrap once all routes are migrated
+
+### 6) Validate every affected live URL path
+After migration, verify deep linking behavior for:
 - `/auth`
+- `/app`
 - `/applications`
-- `/admin/...`
-- `/firms/...`
-- any other non-root URL
+- `/tools/cv-analyser`
+- `/admin`
+- `/admin/opportunities`
+- a fake route to confirm the styled 404 appears
 
-…on a hard refresh, paste, new tab, OAuth redirect, or shared link — the hosting layer must serve `index.html` so React can boot and resolve the route. Right now there is **no SPA fallback file**, so the host returns its own bare-text "Not Found" for anything that isn't `/` or a real static file.
+## Expected outcome
+- Refreshing any real route on the live site will open the correct page
+- Links opened in a new tab will work
+- login redirects will stop landing on host-level 404s
+- the same routing behavior will exist in preview and production
 
-Evidence:
-- Screenshot shows plain `Not Found` (host-level), not the styled 404 from `src/pages/NotFound.tsx` (which would mean React booted).
-- `public/_redirects` does not exist.
-- Preview works because the dev server has a built-in SPA fallback; production hosting does not.
-
-This is a **single-file fix that resolves the entire class of bug** for every route in the app.
-
-## The fix
-
-Add `public/_redirects` with the standard SPA fallback rule:
-
-```
-/*    /index.html   200
-```
-
-That tells the host: for any path that isn't a real file, serve `index.html` with HTTP 200 and let React Router handle it. Status 200 (not 301/302) is critical — it preserves the original URL so React Router sees `/tools/cv-analyser` instead of `/`.
-
-## Why this also fixes the OAuth weirdness
-
-The post-login redirect dance (`?v=…`, `?redirect=/app`, bouncing to `/auth`) gets worse when an intermediate URL returns 404 — the browser treats it as a hard error and the recovery scripts can't catch it. With the fallback in place, every URL the OAuth broker hands back to the app boots React cleanly.
-
-## Files changed
-
-- **`public/_redirects`** (new, 1 line)
-
-That's the entire change. No code, no auth changes, no backend touches. The styled `NotFound.tsx` page will start working again for genuinely unknown routes (since React will now boot and render it instead of the host returning bare text).
-
-## After publishing — verification checklist
-
-Hard-refresh each in production (Cmd+Shift+R) and confirm the page renders, not bare "Not Found":
-
-1. `lexleaks.com/tools/cv-analyser`
-2. `lexleaks.com/applications`
-3. `lexleaks.com/app`
-4. `lexleaks.com/auth`
-5. `lexleaks.com/admin/dashboard`
-6. `lexleaks.com/some-fake-route` → should now show the **styled** 404 page (proof React booted)
-
-If #6 shows the styled 404 instead of bare text, the fix is confirmed working everywhere.
+## Technical note
+This is **not a CV page bug** and **not an auth-only bug**. It is a routing architecture mismatch. The reason the earlier fix appeared plausible is that the symptom looked like a classic SPA fallback problem, but the evidence here shows the right permanent remedy is to migrate this app to the route system the published environment actually expects.
