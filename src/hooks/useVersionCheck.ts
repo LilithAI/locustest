@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { reloadOnce } from "@/lib/chunkRecovery";
 
 /**
  * Polls /version.json and fires `onUpdateAvailable` when the deployed build
@@ -80,16 +81,6 @@ export function useVersionCheck(
       typeof __BUILD_VERSION__ !== "undefined" ? __BUILD_VERSION__ : null;
     if (!currentVersion) return;
 
-    const forceReload = () => {
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.set("v", Date.now().toString());
-        window.location.replace(url.toString());
-      } catch {
-        window.location.reload();
-      }
-    };
-
     const check = async () => {
       if (firedRef.current) return;
       try {
@@ -108,12 +99,15 @@ export function useVersionCheck(
         firedRef.current = true;
 
         // If we already have a stale-version hint in the URL (?v=...) and the
-        // build STILL doesn't match, it means the HTML itself is being served
-        // stale by a CDN. In that case, hard-reload immediately rather than
-        // showing a toast that asks the user to click refresh.
+        // build STILL doesn't match, the HTML itself is being served stale by a
+        // CDN edge. Route through chunkRecovery's counter so we can't infinite-
+        // loop if the CDN keeps serving the old shell. If the counter is
+        // exhausted, fall back to the manual toast.
         const params = new URLSearchParams(window.location.search);
         if (params.has("v")) {
-          forceReload();
+          if (!reloadOnce()) {
+            callbackRef.current();
+          }
           return;
         }
 
