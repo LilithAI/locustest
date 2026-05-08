@@ -1,56 +1,28 @@
-# Fix: Restore SPA fallback so deep links don't 404
 
-## Root cause
-Cloudflare Pages has no instruction to fall back to `index.html` for unmatched paths, so direct loads of `/directory/firms/...`, `/app`, `/the-bar`, `/admin` return a hard 404 from the edge before React Router can mount.
+# Add `vercel.json` SPA fallback (belt-and-suspenders)
 
-`public/_redirects` exists with `/*  /index.html  200`, but the previous `spaFallbackPlugin` that emitted `dist/404.html` is no longer in `vite.config.ts` — so Cloudflare's secondary `404.html` mechanism has nothing to serve.
+## Single change
 
-## Changes
+Create `vercel.json` at the project root:
 
-### 1. `public/_redirects` (verify only)
-Already present with the correct content:
-```
-/*    /index.html   200
-```
-No edit needed — keep as-is.
-
-### 2. `vite.config.ts` — add back `spaFallbackPlugin`
-Two small edits, nothing else touched:
-
-a) Extend the existing `fs` import:
-```ts
-import { writeFileSync, mkdirSync, readFileSync } from "fs";
-```
-
-b) Add a new build-only plugin next to `writeVersionJsonPlugin`, and include it in the `plugins` array:
-```ts
-function spaFallbackPlugin(): Plugin {
-  return {
-    name: "spa-fallback",
-    apply: "build",
-    closeBundle() {
-      try {
-        const outDir = path.resolve(__dirname, "dist");
-        const src = path.join(outDir, "index.html");
-        const dest = path.join(outDir, "404.html");
-        const html = readFileSync(src, "utf-8");
-        writeFileSync(dest, html, "utf-8");
-        console.log("[spa-fallback] dist/404.html written");
-      } catch (e) {
-        console.warn("[spa-fallback] failed:", e);
-      }
-    },
-  };
+```json
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
 ```
-Then add `spaFallbackPlugin()` to the `plugins` array next to `writeVersionJsonPlugin()`.
+
+## Why
+
+`public/_redirects` and the `spaFallbackPlugin` (emits `dist/404.html`) are already in the repo and cover Cloudflare Pages' two SPA fallback mechanisms. `vercel.json` is a no-op on Cloudflare but ensures the same fallback if the deployment ever lands on Vercel infra. Three independent safety nets, one global fix.
 
 ## Out of scope
-No changes to `src/App.tsx`, routing, auth flow, or any other file. Cloud, Supabase, and edge functions untouched.
 
-## Verification
-After republish:
-1. `curl -I https://locustest.lovable.app/directory/firms/aarna-law` → 200, HTML body.
-2. Open `/app`, `/the-bar`, `/admin`, `/tools/cv-analyser` directly in a new tab → page renders, no "Not Found".
-3. Hard-refresh on any deep route → still works.
-4. Real missing assets (e.g. `/nope.png`) still 404 (only unmatched HTML routes fall back).
+No changes to `_redirects`, `vite.config.ts`, `src/App.tsx`, routing, OAuth, Cloud, Supabase, or edge functions.
+
+## After approval
+
+1. I add `vercel.json`.
+2. **You click Publish → Update.** The fix cannot take effect on the current live build.
+3. I re-run curl on `/directory/firms/aarna-law`, `/app`, `/the-bar`, `/admin` and confirm 200 + `text/html`.
