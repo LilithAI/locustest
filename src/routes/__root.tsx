@@ -145,7 +145,7 @@ function RootDocument() {
         />
         <HeadContent />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <noscript>
           <img
             height="1"
@@ -156,9 +156,6 @@ function RootDocument() {
           />
         </noscript>
         <div id="root">
-          <ClientOnly fallback={<div />}>
-            <App />
-          </ClientOnly>
           <Outlet />
         </div>
         <ClientBootstrap />
