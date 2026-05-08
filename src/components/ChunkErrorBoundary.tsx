@@ -1,5 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { tryRecoverFromChunkError, isChunkLoadError } from "@/lib/chunkRecovery";
+import {
+  tryRecoverFromChunkError,
+  isChunkLoadError,
+  resetReloadAttempts,
+} from "@/lib/chunkRecovery";
 
 interface Props {
   children: ReactNode;
