@@ -150,10 +150,12 @@ export function useVersionCheck(
       }
     };
 
-    // Run the FIRST check immediately on load (not after 5s). This is the
-    // change that actually catches users opening the site fresh on a stale
-    // CDN edge — they'll be auto-redirected with a cache-buster.
-    check();
+    // Defer the FIRST check by one frame so any pending route-level
+    // navigate() (e.g. AppHome → /auth) commits first. That way the
+    // auth-path skip kicks in cleanly and we don't append ?v=… to /auth.
+    const firstCheckId = window.requestAnimationFrame(() => {
+      window.setTimeout(check, 0);
+    });
 
     const interval = window.setInterval(check, intervalMs);
     const onFocus = () => check();
@@ -164,6 +166,7 @@ export function useVersionCheck(
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
+      window.cancelAnimationFrame(firstCheckId);
       window.clearInterval(interval);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
