@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -156,6 +157,7 @@ function parseChecklist(text: string): ChecklistSection[] {
 
 export default function Tools() {
   usePageMeta({ title: "Legal Tools", description: "Free legal document generators — NDA, DPA, internship agreements, and compliance checklists for Indian law.", path: "/tools" });
+  const navigate = useNavigate();
   const [selectedTool, setSelectedTool] = useState<ToolType | null>(null);
   const [activeTool, setActiveTool] = useState<ToolType>("nda");
   const [activeCategory, setActiveCategory] = useState<CategoryType>("All");
@@ -633,7 +635,7 @@ Make it jurisdiction-appropriate. Reference specific statutory provisions where 
                 <div
                   key={tool.num}
                   className={`lt-cat-card${tool.comingSoon ? " coming-soon" : ""}`}
-                  onClick={() => { if (tool.comingSoon) return; if (tool.href) { window.location.href = tool.href; } else { openTool(tool.id); } }}
+                  onClick={() => { if (tool.comingSoon) return; if (tool.href) { navigate(tool.href); } else { openTool(tool.id); } }}
                   style={tool.featured ? { borderColor: "hsl(var(--accent))", boxShadow: "4px 4px 0 0 hsl(var(--accent))" } : undefined}
                 >
                   {tool.comingSoon && <span className="lt-coming-badge">Coming Soon</span>}
