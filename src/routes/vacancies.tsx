@@ -5,11 +5,11 @@ function PickerStub() {
   return null;
 }
 
-export const Route = createFileRoute("/choose-username")({
+export const Route = createFileRoute("/vacancies")({
   component: PickerStub,
   head: () => ({
     meta: [{ name: "robots", content: "noindex" }],
   }),
 });
 
-export const pickerPath = "/choose-username";
+export const pickerPath = "/vacancies";

@@ -1,9 +1,9 @@
 # src/routes/ — Lovable picker stubs
 
-These files exist ONLY so Lovable's preview URL picker can list every page.
-They are not wired into any router and render nothing at runtime.
+These files exist only so Lovable's preview URL picker can discover routes in this project.
 
-Real routing lives in `src/App.tsx` using `react-router-dom`.
+They use TanStack-style `createFileRoute()` declarations for editor discovery, but the live app still routes through `src/App.tsx` with `react-router-dom`.
 
-If you add/rename/delete a route in `src/App.tsx`, mirror the change here so
-the picker stays in sync.
+Each stub returns `null` and should not be imported anywhere else.
+
+If you add, rename, or remove a route in `src/App.tsx`, mirror that change here so the picker stays in sync.
