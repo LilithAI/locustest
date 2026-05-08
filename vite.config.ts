@@ -4,7 +4,7 @@ import mdx from "@mdx-js/rollup";
 import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import path from "path";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, readFileSync } from "fs";
 import { componentTagger } from "lovable-tagger";
 import { visualizer } from "rollup-plugin-visualizer";
 
@@ -32,6 +32,27 @@ function writeVersionJsonPlugin(): Plugin {
   };
 }
 
+// Emits dist/404.html as a copy of index.html so Cloudflare Pages' secondary
+// fallback (404.html) also serves the SPA shell for unmatched routes.
+function spaFallbackPlugin(): Plugin {
+  return {
+    name: "spa-fallback",
+    apply: "build",
+    closeBundle() {
+      try {
+        const outDir = path.resolve(__dirname, "dist");
+        const src = path.join(outDir, "index.html");
+        const dest = path.join(outDir, "404.html");
+        const html = readFileSync(src, "utf-8");
+        writeFileSync(dest, html, "utf-8");
+        console.log("[spa-fallback] dist/404.html written");
+      } catch (e) {
+        console.warn("[spa-fallback] failed:", e);
+      }
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -49,6 +70,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     writeVersionJsonPlugin(),
+    spaFallbackPlugin(),
     // Bundle size report. Enabled with `bun run build --mode analyze`.
     // Writes dist/stats.html — open it locally to inspect chunk sizes.
     mode === "analyze" &&

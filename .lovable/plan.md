@@ -1,31 +1,56 @@
-# Fix: Google OAuth → `/app` 404 (SPA navigation, not server redirect)
+# Fix: Restore SPA fallback so deep links don't 404
 
 ## Root cause
-`src/App.tsx` `OAuthCallbackHandler`'s `finish()` uses `window.location.replace(safe)` after exchanging the OAuth session. That's a hard server request to `/app`, which the host doesn't serve as an SPA fallback for that deep link → 404. Email/password works because `Auth.tsx` uses React Router's `navigate()` instead.
+Cloudflare Pages has no instruction to fall back to `index.html` for unmatched paths, so direct loads of `/directory/firms/...`, `/app`, `/the-bar`, `/admin` return a hard 404 from the edge before React Router can mount.
 
-## Change (single file: `src/App.tsx`)
-Inside the existing `finish()` helper in the OAuth `useEffect`, replace the hard navigation with HTML5 History API + a synthetic `popstate` so `BrowserRouter` picks it up client-side. Keep the existing hash-strip and `sessionStorage.removeItem` lines exactly as they are.
+`public/_redirects` exists with `/*  /index.html  200`, but the previous `spaFallbackPlugin` that emitted `dist/404.html` is no longer in `vite.config.ts` — so Cloudflare's secondary `404.html` mechanism has nothing to serve.
 
+## Changes
+
+### 1. `public/_redirects` (verify only)
+Already present with the correct content:
+```
+/*    /index.html   200
+```
+No edit needed — keep as-is.
+
+### 2. `vite.config.ts` — add back `spaFallbackPlugin`
+Two small edits, nothing else touched:
+
+a) Extend the existing `fs` import:
 ```ts
-// BEFORE
-const safe = next && next.startsWith("/") && !next.startsWith("//") ? next : "/app";
-window.location.replace(safe);
-
-// AFTER
-const safe = next && next.startsWith("/") && !next.startsWith("//") ? next : "/app";
-window.history.replaceState({}, "", safe);
-window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
-setOauthInFlight(false); // unblock the loader so <Routes> mounts on the new path
+import { writeFileSync, mkdirSync, readFileSync } from "fs";
 ```
 
-Note: the current code centralises both OAuth shapes (hash tokens + stashed redirect) through one `finish()`, so a single edit covers both cases the user described.
+b) Add a new build-only plugin next to `writeVersionJsonPlugin`, and include it in the `plugins` array:
+```ts
+function spaFallbackPlugin(): Plugin {
+  return {
+    name: "spa-fallback",
+    apply: "build",
+    closeBundle() {
+      try {
+        const outDir = path.resolve(__dirname, "dist");
+        const src = path.join(outDir, "index.html");
+        const dest = path.join(outDir, "404.html");
+        const html = readFileSync(src, "utf-8");
+        writeFileSync(dest, html, "utf-8");
+        console.log("[spa-fallback] dist/404.html written");
+      } catch (e) {
+        console.warn("[spa-fallback] failed:", e);
+      }
+    },
+  };
+}
+```
+Then add `spaFallbackPlugin()` to the `plugins` array next to `writeVersionJsonPlugin()`.
 
 ## Out of scope
-- No changes to `Auth.tsx`, `ChunkErrorBoundary`, `chunkRecovery`, `Tools.tsx`, or any backend/Supabase config.
-- No router library swap, no hosting changes.
+No changes to `src/App.tsx`, routing, auth flow, or any other file. Cloud, Supabase, and edge functions untouched.
 
 ## Verification
-1. Sign in with Google → lands on `/app` directly, no flash, no 404, URL has no `#access_token=`.
-2. Sign in with email/password → still navigates to `/app` (unchanged path).
-3. Cancel Google consent → returns without getting stuck on the loader (existing 8s safety + `finally` cleanup remain).
-4. Hard-refresh `/app` while signed in → still works.
+After republish:
+1. `curl -I https://locustest.lovable.app/directory/firms/aarna-law` → 200, HTML body.
+2. Open `/app`, `/the-bar`, `/admin`, `/tools/cv-analyser` directly in a new tab → page renders, no "Not Found".
+3. Hard-refresh on any deep route → still works.
+4. Real missing assets (e.g. `/nope.png`) still 404 (only unmatched HTML routes fall back).
