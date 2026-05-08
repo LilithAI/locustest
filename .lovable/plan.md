@@ -1,60 +1,59 @@
 ## Goal
-Retry the Lovable custom-domain setup cleanly, verify whether deep-link 404s are fixed this time, and have a fallback ready if they aren't. **No app code changes** — this is purely a hosting/DNS exercise.
 
-## Why this might work this time (and might not)
-Last time: home loaded, `/directory` 404'd. Today's curl on `locustest.lovable.app` shows the same 404 from Cloudflare with `text/plain` — so the bug is in Lovable's edge layer for this project. Retrying could succeed if (a) Lovable has shipped a fix, or (b) the previous attempt had a Cloudflare proxy-mode mismatch that we set up cleanly this time. Otherwise we'll see the same 404 within 5 minutes of going live, and we cut over to Vercel.
+Produce a complete, importable backup of your Lovable Cloud Supabase project — schema, data, and storage files — so you have a copy on an account you own. The live app stays on Lovable Cloud, untouched.
 
-## You do (steps 1–5)
+## Deliverables
 
-### 1. Pick the domain to use
-What's the domain bought from Hostinger? (e.g. `locus.legal`, or a subdomain like `app.locus.legal`.) Tell me which subdomain you want as Primary — `locus.legal` or `www.locus.legal`. Both should be added so both resolve.
+Three files in `/mnt/documents/`, downloadable from the Files view:
 
-### 2. Clean slate at Cloudflare
-Before re-adding in Lovable, make sure DNS is in a known-good state:
-- Log into Cloudflare → DNS for the domain.
-- **Delete any old A/CNAME/TXT records** from the previous Lovable attempt (root `@`, `www`, `_lovable`). Stale records are the #1 cause of "domain attached but routing broken."
-- Decide proxy mode now (next step depends on it).
+1. **`schema.sql`** — every public-schema object: tables, enums, functions, triggers, RLS policies, indexes. Drop-in importable to any Postgres 15+.
+2. **`data.sql`** — every row from every public-schema table, as `COPY` statements (fast, idempotent restore).
+3. **`storage-files.zip`** — every file from your 4 storage buckets (`avatars`, `cvs`, `bar-sources`, `beta-screenshots`), preserving folder structure.
+4. **`README.md`** — copy-paste import commands for your personal Supabase project.
 
-### 3. Decide: Cloudflare proxy ON or OFF
-- **OFF (DNS-only, grey cloud)** → use Lovable's standard A-record setup. Simpler. Recommended for the retry.
-- **ON (orange cloud, proxied)** → must use Lovable's "Domain uses Cloudflare or a similar proxy" mode (CNAME-based). If you proxied last time without ticking that box, that alone could explain the failure.
+Excluded (intentionally):
+- `auth.*` tables (you said fresh start is fine)
+- Lovable-managed schemas (`pgmq`, `vault`, `realtime`, `storage` schema itself)
+- Edge functions (those live in this repo's `supabase/functions/` — already on GitHub)
 
-### 4. Add the domain in Lovable
-- Project Settings → Domains → Connect Domain.
-- Enter the root domain (e.g. `locus.legal`).
-- If you chose proxy ON in step 3, expand **Advanced** → tick **"Domain uses Cloudflare or a similar proxy"**.
-- Add the records Lovable shows you at Cloudflare exactly (A `@` → 185.158.133.1 + TXT `_lovable`, OR the CNAME variant if proxied).
-- Repeat **Add Domain** for `www.locus.legal` so both resolve.
-- Set the one you want canonical as **Primary**.
+## Approach
 
-### 5. Wait for status = Active
-Watch the Domains page. Status flow: Verifying → Setting up → Active. Don't proceed until both rows show **Active** (usually 5–60 min, can take up to 72h). If it stalls in Verifying, DNS isn't propagating — recheck with [dnschecker.org](https://dnschecker.org).
+### Step 1 — Schema dump
+Run `pg_dump --schema-only --schema=public --no-owner --no-privileges` against `SUPABASE_DB_URL` (already in secrets). Strip Lovable-specific role grants. Output → `schema.sql`.
 
-## I do (steps 6–7) — once you tell me the domain is Active
+### Step 2 — Data dump
+Run `pg_dump --data-only --schema=public --no-owner --column-inserts=false` (uses fast `COPY`). Output → `data.sql`.
 
-### 6. Run the curl smoke test
-I'll run, in parallel:
-```
-curl -I https://<domain>/
-curl -I https://<domain>/directory
-curl -I https://<domain>/resources
-curl -I https://<domain>/u/test
-curl -I https://<domain>/admin/login
-```
-**Pass criteria:** every URL returns `200` with `content-type: text/html`. Anything else (404, text/plain, Cloudflare error page) = failure.
+### Step 3 — Storage files
+For each bucket, list all objects via the Supabase Storage API (using `SUPABASE_SERVICE_ROLE_KEY`), download each file, preserve the path. Zip the whole tree as `storage-files.zip`.
 
-### 7. Tell you the result
-- **Pass** → republish, update `index.html` canonical/og:url + `public/sitemap.xml` to the new domain, update Supabase Site URL/redirect allowlist. Done.
-- **Fail (same 404s)** → this is now a confirmed reproducible Lovable bug across two attempts. Stop retrying. Move on to the fallback.
+### Step 4 — README with import instructions
+Plain-English steps:
+1. Create new Supabase project at supabase.com
+2. Open SQL Editor → paste & run `schema.sql`
+3. Open SQL Editor → paste & run `data.sql`
+4. Create the 4 buckets manually in Storage (with same public/private settings)
+5. Use Supabase CLI or dashboard to upload the unzipped `storage-files/` tree
 
-## Fallback if retry fails
-Connect the **same** Hostinger domain to Vercel instead — DNS just points at Vercel's IPs/CNAME instead of Lovable's. Existing `vercel.json` provides SPA fallback. ~15 min from "remove Lovable DNS records" to "Active on Vercel with deep links working." I'll write the exact steps when/if we get there.
+## What you'll need to do (after I deliver)
 
-## What I am NOT doing
-- No edits to `App.tsx`, `vite.config.ts`, `vercel.json`, `public/_redirects`, or any route file.
-- No HashRouter migration (still rejected for SEO/OAuth reasons).
-- No changes to Supabase auth yet — only after a domain goes Active.
-- No support ticket yet — we'll have stronger evidence after this retry.
+- Open Files view, download all 4 files
+- Create your personal Supabase project
+- Follow the README — should take 15-20 minutes
+- (Optional) Re-add the 2 seeded admins by signing them up fresh on the new project
 
-## What I need from you to start
-Just the domain name. Once you've completed steps 1–5 and Lovable shows **Active**, ping me and I'll run the curl test in step 6.
+## Risk assessment
+
+- **Live app**: zero impact, no code changes, no DB changes
+- **Storage download size**: depends on how many files in `cvs` and `bar-sources`. If it's gigabytes, I'll warn you and we can split or skip large buckets
+- **Time to generate**: ~3-10 minutes depending on data + storage size
+
+## Out of scope (for this task)
+
+- Auth users migration
+- Edge function redeployment
+- Frontend code changes
+- AI key swap, OAuth setup
+- Switching the live app's `client.ts` to point at the new DB
+
+If you later want to actually flip the app over, that's a separate, bigger plan.
