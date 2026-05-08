@@ -1,59 +1,48 @@
-## Goal
+# Deploy to Cloudflare Pages
 
-Produce a complete, importable backup of your Lovable Cloud Supabase project — schema, data, and storage files — so you have a copy on an account you own. The live app stays on Lovable Cloud, untouched.
+Cloudflare Pages free tier covers you easily: unlimited sites, unlimited bandwidth & requests, 500 builds/month, automatic SSL, global CDN. No cost unless you exceed 500 builds/month.
 
-## Deliverables
+## What changes in the code
 
-Three files in `/mnt/documents/`, downloadable from the Files view:
+### 1. Add Cloudflare Pages config files
+- **`public/_headers`** — security headers + cache rules for hashed JS/CSS assets (long cache) and HTML/`version.json` (no cache, so deploy detection keeps working).
+- Keep existing **`public/_redirects`** (`/* /index.html 200`) — Cloudflare Pages reads the same file format as Netlify, so SPA routing works out of the box.
+- Optional: a tiny **`wrangler.toml`** at root for reproducibility (not required if you configure in dashboard).
 
-1. **`schema.sql`** — every public-schema object: tables, enums, functions, triggers, RLS policies, indexes. Drop-in importable to any Postgres 15+.
-2. **`data.sql`** — every row from every public-schema table, as `COPY` statements (fast, idempotent restore).
-3. **`storage-files.zip`** — every file from your 4 storage buckets (`avatars`, `cvs`, `bar-sources`, `beta-screenshots`), preserving folder structure.
-4. **`README.md`** — copy-paste import commands for your personal Supabase project.
+### 2. Mark Google sign-in as "coming soon"
+In `src/pages/Auth.tsx`:
+- Disable the Google button, change label to **"Google sign-in — coming soon"**, remove the click handler (or have it toast "Coming soon — use email for now").
+- Leave all the wiring (`lovable.auth.signInWithOAuth`, `src/integrations/lovable/index.ts`) intact so we can flip it back on later when we wire native Supabase Google OAuth.
 
-Excluded (intentionally):
-- `auth.*` tables (you said fresh start is fine)
-- Lovable-managed schemas (`pgmq`, `vault`, `realtime`, `storage` schema itself)
-- Edge functions (those live in this repo's `supabase/functions/` — already on GitHub)
+### 3. Update memory
+Note in `mem://index.md` that the app is being moved from Netlify → Cloudflare Pages and Google login is temporarily disabled pending native Supabase OAuth setup.
 
-## Approach
+## What you do in Cloudflare dashboard
 
-### Step 1 — Schema dump
-Run `pg_dump --schema-only --schema=public --no-owner --no-privileges` against `SUPABASE_DB_URL` (already in secrets). Strip Lovable-specific role grants. Output → `schema.sql`.
+1. **Cloudflare Dashboard → Workers & Pages → Create → Pages → Connect to Git**
+2. Authorize Cloudflare's GitHub app, pick your Locus repo
+3. Build settings:
+   - Framework preset: **None** (or "Vite")
+   - Build command: `npm install --legacy-peer-deps && npm run build`
+   - Build output directory: `dist`
+   - Root directory: *(leave empty)*
+   - Node version: add env var `NODE_VERSION` = `20`
+4. **Environment variables** (Production + Preview both):
+   - `VITE_SUPABASE_URL` = `https://wksqrdinlrgkjnncanui.supabase.co`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY` = (the anon key — same one in your current `.env`)
+   - `VITE_SUPABASE_PROJECT_ID` = `wksqrdinlrgkjnncanui`
+   - `NODE_VERSION` = `20`
+   - `NPM_FLAGS` = `--legacy-peer-deps`
+5. Click **Save and Deploy** — first build runs ~2-3 min
+6. Once green: **Pages project → Custom domains → Set up a custom domain** → enter your domain. Since it's already on Cloudflare DNS, attaching takes one click — no DNS records to copy/paste, SSL auto-provisions in seconds.
 
-### Step 2 — Data dump
-Run `pg_dump --data-only --schema=public --no-owner --column-inserts=false` (uses fast `COPY`). Output → `data.sql`.
+## After it's live
 
-### Step 3 — Storage files
-For each bucket, list all objects via the Supabase Storage API (using `SUPABASE_SERVICE_ROLE_KEY`), download each file, preserve the path. Zip the whole tree as `storage-files.zip`.
+- Verify: open the domain, sign in with email/password, check that admin login works at `/admin/login`
+- You can leave Netlify deployed in parallel as a fallback for a few days, then disconnect it
+- When ready for real Google login, separate task: create Google OAuth client in Google Cloud Console + paste credentials into Supabase auth providers, then re-enable the button
 
-### Step 4 — README with import instructions
-Plain-English steps:
-1. Create new Supabase project at supabase.com
-2. Open SQL Editor → paste & run `schema.sql`
-3. Open SQL Editor → paste & run `data.sql`
-4. Create the 4 buckets manually in Storage (with same public/private settings)
-5. Use Supabase CLI or dashboard to upload the unzipped `storage-files/` tree
-
-## What you'll need to do (after I deliver)
-
-- Open Files view, download all 4 files
-- Create your personal Supabase project
-- Follow the README — should take 15-20 minutes
-- (Optional) Re-add the 2 seeded admins by signing them up fresh on the new project
-
-## Risk assessment
-
-- **Live app**: zero impact, no code changes, no DB changes
-- **Storage download size**: depends on how many files in `cvs` and `bar-sources`. If it's gigabytes, I'll warn you and we can split or skip large buckets
-- **Time to generate**: ~3-10 minutes depending on data + storage size
-
-## Out of scope (for this task)
-
-- Auth users migration
-- Edge function redeployment
-- Frontend code changes
-- AI key swap, OAuth setup
-- Switching the live app's `client.ts` to point at the new DB
-
-If you later want to actually flip the app over, that's a separate, bigger plan.
+## Out of scope (intentionally)
+- Native Supabase Google OAuth wiring — deferred per your choice
+- Touching Supabase, edge functions, AI keys — they're host-agnostic, nothing to migrate
+- Removing Netlify — keep `netlify.toml` around as backup until Cloudflare is verified stable
