@@ -11,26 +11,32 @@ interface Props {
 
 interface State {
   error: Error | null;
+  reloading: boolean;
 }
 
 /**
  * Catches errors thrown inside the lazy-route <Suspense> tree.
  *
- * Stale chunk-load failures (the #1 cause of post-deploy "Not Found" /
- * blank-screen reports) trigger a single cache-busting hard reload via
- * `tryRecoverFromChunkError`. Any other error renders a small branded
- * fallback so the user is never left staring at an empty page.
+ * Stale chunk-load failures trigger a cache-busting hard reload (capped at
+ * 2 per session via chunkRecovery). When the reload limit is reached, we
+ * render a styled fallback with a manual Reload button instead of a blank
+ * screen. Non-chunk errors render the same branded fallback.
  */
 export default class ChunkErrorBoundary extends Component<Props, State> {
-  state: State = { error: null };
+  state: State = { error: null, reloading: false };
 
   static getDerivedStateFromError(error: Error): State {
-    return { error };
+    return { error, reloading: false };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    if (tryRecoverFromChunkError(error)) {
-      // Hard reload is in flight — nothing else to do.
+    if (isChunkLoadError(error)) {
+      const triggered = tryRecoverFromChunkError(error);
+      if (triggered) {
+        // Hard reload is in flight — show a "Reloading…" placeholder so the
+        // user doesn't see a blank screen during the navigation.
+        this.setState({ reloading: true });
+      }
       return;
     }
     // Real bug — log it so we can see it in the browser console / error reporter.
@@ -38,6 +44,8 @@ export default class ChunkErrorBoundary extends Component<Props, State> {
   }
 
   private handleReload = () => {
+    // Give the user a fresh quota of automatic reload attempts.
+    resetReloadAttempts();
     try {
       const url = new URL(window.location.href);
       url.searchParams.set("v", Date.now().toString());
@@ -48,26 +56,47 @@ export default class ChunkErrorBoundary extends Component<Props, State> {
   };
 
   render() {
-    const { error } = this.state;
+    const { error, reloading } = this.state;
     if (!error) return this.props.children;
 
-    // If it's a chunk error, the reload is already triggered — render nothing
-    // briefly to avoid a flash of fallback before the page navigates away.
-    if (isChunkLoadError(error)) return null;
+    // Reload is in flight — show a minimal placeholder, not blank.
+    if (reloading) {
+      return (
+        <div className="min-h-[60vh] flex items-center justify-center p-6">
+          <div className="text-sm text-muted-foreground font-mono">
+            Loading latest version…
+          </div>
+        </div>
+      );
+    }
+
+    const chunkErr = isChunkLoadError(error);
 
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-6">
         <div className="border-2 border-border bg-card p-6 max-w-md w-full shadow-[3px_3px_0_0_hsl(var(--border))] space-y-4">
-          <h1 className="font-heading text-xl font-bold">Something went wrong</h1>
+          <h1 className="font-heading text-xl font-bold">
+            {chunkErr ? "New version available" : "Something went wrong"}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            This page hit an unexpected error. Reloading usually fixes it.
+            {chunkErr
+              ? "This page couldn't load because the app was updated. Reload to get the latest version."
+              : "This page hit an unexpected error. Reloading usually fixes it."}
           </p>
-          <button
-            onClick={this.handleReload}
-            className="border-2 border-border bg-accent text-accent-foreground px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0_hsl(var(--border))] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_hsl(var(--border))] transition-transform"
-          >
-            Reload
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={this.handleReload}
+              className="border-2 border-border bg-accent text-accent-foreground px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0_hsl(var(--border))] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_hsl(var(--border))] transition-transform"
+            >
+              Reload
+            </button>
+            <a
+              href="/"
+              className="text-sm font-medium underline underline-offset-4 hover:text-foreground text-muted-foreground"
+            >
+              Go home
+            </a>
+          </div>
         </div>
       </div>
     );
