@@ -157,6 +157,7 @@ function parseChecklist(text: string): ChecklistSection[] {
 
 export default function Tools() {
   usePageMeta({ title: "Legal Tools", description: "Free legal document generators — NDA, DPA, internship agreements, and compliance checklists for Indian law.", path: "/tools" });
+  const navigate = useNavigate();
   const [selectedTool, setSelectedTool] = useState<ToolType | null>(null);
   const [activeTool, setActiveTool] = useState<ToolType>("nda");
   const [activeCategory, setActiveCategory] = useState<CategoryType>("All");
