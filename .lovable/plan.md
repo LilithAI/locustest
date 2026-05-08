@@ -1,57 +1,89 @@
-# Fix stale "Not Found" chunk recovery
+# Fix: Tools→CV Analyser 404 and Login Flash-to-404
 
-## Context (corrected)
-- `locus.legal` = production (real users).
-- `lexleaks.com` = private staging (just you).
-- Two domains serving two deployments is **intentional** — not split-brain.
-- The "Not Found" you keep seeing is on **lexleaks.com while iterating**, i.e. the classic post-publish stale-chunk pattern. Real users on `locus.legal` would hit the same bug whenever you promote a build, so it's still worth fixing properly.
+Two unrelated bugs, both rooted in the same anti-pattern: doing a **hard browser navigation** (`window.location.href = ...` / OAuth callback redirect) on a SPA where the served HTML and the in-memory route table can fall out of sync on a stale build.
 
-## Real problems to fix
-1. **One-shot reload guard is too strict.** `chunkRecovery.ts` uses a `sessionStorage` flag that allows exactly **one** reload per session. After that, every subsequent chunk failure is silently suppressed and the boundary renders `null` forever.
-2. **`ChunkErrorBoundary` returns `null` after suppression.** When recovery is suppressed, the user is left with a blank screen instead of a usable fallback.
-3. **`prefetchCommonRoutes()` swallows errors.** A failed background prefetch deletes the key but never routes the error into `tryRecoverFromChunkError`. Only `prefetchRoute` (hover prefetch) does that.
-4. **Leftover cross-domain plumbing.** Not breaking anything, but stale and confusing. Worth cleaning while we're in here.
+---
 
-## Changes
+## Bug 1 — "CV Analyser" 404 from the Tools page
 
-### 1. `src/lib/chunkRecovery.ts` — allow up to 2 reloads per session
-- Replace the boolean `RELOAD_FLAG` with a **counter** in `sessionStorage` (`locus_chunk_reload_count`).
-- Allow up to **2** reloads per session. Third+ failure → return `false` so the boundary renders the styled fallback instead.
-- Keep the cache-busting `?v=<timestamp>` query param.
-- Export a new helper `getReloadAttempts(): number` so the boundary can decide between "silently reloading" and "show fallback".
+### Root cause
+`src/pages/Tools.tsx` line 636 navigates with a **full page reload**:
+```ts
+onClick={() => { ... window.location.href = tool.href; ... }}
+```
+Every other place that links to `/tools/cv-analyser` (Resources page, ShowcasePane, FeatureBento, search engine) uses React Router's `<Link>` — which works.
 
-### 2. `src/components/ChunkErrorBoundary.tsx` — never render null forever
-- When a chunk error is caught:
-  - If `tryRecoverFromChunkError` returned `true` → render a small "Reloading…" placeholder (matches `RouteSkeleton` styling), not `null`. This avoids a flash of blank screen during the reload.
-  - If it returned `false` (limit reached) → render the styled fallback with a manual Reload button **and** a "Go home" link. Reload button should clear the session counter so the user gets a fresh 2 attempts.
-- For non-chunk errors, keep the existing branded fallback.
+`window.location.href` causes the browser to re-fetch `index.html` + a fresh JS bundle. On lexleaks.com the cached HTML often points to chunk hashes that no longer exist after a new build, so the lazy `CvAnalyser` chunk fails to resolve → `ChunkErrorBoundary` triggers → after recovery attempts the user lands on a blank/NotFound-looking screen. From the Resources page the same target opens fine because it stays inside the SPA (no HTML refetch, no chunk-hash mismatch).
 
-### 3. `src/lib/prefetch.ts` — route prefetch failures through recovery
-- In `prefetchCommonRoutes()`'s `run()` loop, change the `catch {}` to call `tryRecoverFromChunkError(err)` (same pattern as `prefetchRoute`). Background prefetch failures are the **earliest** signal that the deployed bundle no longer matches the user's HTML — using them proactively means users get bounced to the fresh build before they ever click.
+### Fix
+Replace the hard navigation in the Tools catalogue card with SPA navigation, matching the Resources/Showcase pattern.
 
-### 4. Cleanup of stale cross-domain code in `src/App.tsx`
-- Remove the `locuslegal.lovable.app → locus.legal` redirect block (host no longer exists; the published Lovable URL now redirects to `lexleaks.com`).
-- Leave the `post_oauth_redirect` and implicit-flow `#access_token=` rescuers — those are still correct and host-agnostic.
-
-### 5. (Optional, flagged for your decision) `index.html` canonical
-- The HTML still emits `<link rel="canonical" href="https://locus.legal/" />` even when served from lexleaks.com. That's actually what you want for SEO — Google should index `locus.legal`, not the staging host. **No change recommended.** Just calling it out so you know it's intentional, not a bug.
-
-## Files
-
-```text
-src/lib/chunkRecovery.ts            EDIT  — counter-based reload guard + getReloadAttempts()
-src/components/ChunkErrorBoundary.tsx  EDIT  — render placeholder mid-reload, fallback after limit
-src/lib/prefetch.ts                 EDIT  — route prefetchCommonRoutes errors through recovery
-src/App.tsx                         EDIT  — remove dead locuslegal.lovable.app redirect
+```tsx
+// src/pages/Tools.tsx
+import { useNavigate } from "react-router-dom";
+const navigate = useNavigate();
+...
+onClick={() => {
+  if (tool.comingSoon) return;
+  if (tool.href) navigate(tool.href);
+  else openTool(tool.id);
+}}
 ```
 
+(No change needed in `tools.ts` — `href: "/tools/cv-analyser"` already matches the route in `App.tsx`.)
+
+---
+
+## Bug 2 — Google login: dashboard flashes, then NotFound
+
+### Root cause
+In `src/App.tsx` (top-of-file rescuer) we handle two OAuth shapes:
+
+1. `sessionStorage.post_oauth_redirect` set + broker drops us back at `/`
+2. Legacy implicit-flow `#access_token=` in the hash
+
+Both run **asynchronously** (`supabase.auth.getSession().then(...)` / `setSession().then(...)`), but the `<BrowserRouter><Routes>` tree mounts **synchronously** on the same render. So the sequence is:
+
+1. Browser lands on the redirect URI (e.g. `/` with a hash, or `/app` after the broker bounce).
+2. Routes mount → `AppHome` (or another protected page) renders → user sees the dashboard for a frame.
+3. The async rescuer finishes → calls `window.location.replace(stashed)` → during the unload window React unmounts; if a lazy chunk for the destination is being prefetched and fails (stale build), `ChunkErrorBoundary` swallows and re-renders, but on the wrong path → `*` route → `NotFound`.
+4. A manual reload uses the now-clean URL + valid session → everything works.
+
+### Fix
+Short-circuit the render tree while we are mid-OAuth, so no route ever mounts with tokens still in the URL.
+
+In `src/App.tsx`:
+
+1. Move the two rescuer blocks into a small `useEffect`-driven component (`OAuthCallbackHandler`) that lives **above** `<BrowserRouter>`.
+2. Compute a synchronous `isOAuthInFlight` flag at module/render time:
+   - `window.location.hash.includes("access_token=")`, **or**
+   - a non-null `sessionStorage.post_oauth_redirect` AND no current session yet
+3. While `isOAuthInFlight` is true, return a minimal full-screen loader (same skeleton as `RouteSkeleton`) instead of mounting `<BrowserRouter>`.
+4. Inside the handler, after `setSession` / `getSession` resolves:
+   - Clear the hash with `history.replaceState(null, "", window.location.pathname + window.location.search)`.
+   - Then `window.location.replace(stashed || "/app")` (or use `navigate` after BrowserRouter is allowed to mount).
+5. Remove `post_oauth_redirect` from sessionStorage in a `finally` so a stuck value can never cause a future false-positive in-flight state.
+
+Net effect: no route ever paints while `#access_token=...` is still in the URL, so there is no dashboard flash and no NotFound fallback.
+
+### Optional hardening (same file, same fix)
+- In `Auth.tsx#handleGoogleSignIn`, set `post_oauth_redirect` only after a successful `signInWithOAuth` call (not before). Prevents an orphan key blocking future loads if the user cancels Google's screen.
+- Add `window.location.hash = ""` immediately after `setSession` succeeds, even before the redirect, so any error during redirect doesn't leave tokens in the URL bar.
+
+---
+
+## Files touched
+- `src/pages/Tools.tsx` — swap `window.location.href` for `useNavigate()` in the catalogue card click handler.
+- `src/App.tsx` — extract OAuth rescuer into a component above `<BrowserRouter>`; render a loader while `isOAuthInFlight`; clean the hash before replacing the URL.
+- `src/pages/Auth.tsx` *(optional hardening only)* — guard `post_oauth_redirect` write.
+
 ## Out of scope
-- No changes to `useVersionCheck` (it works correctly per-host).
-- No changes to routing library (still react-router-dom).
-- No service-worker / PWA changes.
-- No production deploy changes — this all lives in client code and ships with the next publish.
+- No router library swap, no hosting/_redirects changes (Lovable hosting already handles SPA fallback).
+- No changes to `ChunkErrorBoundary` / `chunkRecovery` — they keep working as the safety net for genuinely stale chunks.
+- No backend / Supabase config changes.
 
 ## Verification
-- After implementation, on lexleaks.com: trigger a chunk error (simulate by renaming a file in DevTools network blocklist) → confirm silent reload happens, capped at 2.
-- Force a 3rd failure → confirm styled fallback renders with working Reload + Go home buttons.
-- Confirm `prefetchCommonRoutes()` failures also trigger the recovery path (check Network tab after a publish).
+1. From `/tools`, click the CV Analyser card → opens `/tools/cv-analyser` with no reload, no 404.
+2. Sign out, then sign in with Google → land directly on `/app` with no dashboard flash and no NotFound flash. URL bar contains no `#access_token=`.
+3. Hard-refresh `/tools/cv-analyser` directly → still loads (confirms hosting fallback is fine and we didn't regress it).
+4. Cancel the Google consent screen mid-flow → returning to the app does not get stuck on the loader (verifies the `finally` cleanup of `post_oauth_redirect`).
