@@ -2,7 +2,7 @@ import { useState } from "react";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,13 +95,15 @@ export default function Auth() {
     setLoading(true);
     try {
       void track("signup_started", { method: "google" });
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}${postLoginPath}`,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}${postLoginPath}`,
+          queryParams: { prompt: "select_account" },
+        },
       });
-      if (result.error) throw result.error;
-      if (result.redirected) return;
-      void track("signup_completed", { method: "google" });
-      navigate(postLoginPath);
+      if (error) throw error;
+      // Browser is redirecting to Google — no further code runs.
     } catch (err: any) {
       toast.error(err?.message || "Google sign-in failed");
       setLoading(false);
