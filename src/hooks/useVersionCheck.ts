@@ -96,15 +96,35 @@ export function useVersionCheck(
         if (!data?.version) return;
         if (data.version === currentVersion) return;
 
+      // Skip auto-reload while the user is on an auth-sensitive screen or
+      // mid-OAuth roundtrip. Forcing a reload here can race setSession and
+      // produce a flash mid-login. The next navigation re-runs the check.
+      const path = window.location.pathname;
+      const authPath =
+        path === "/auth" ||
+        path === "/reset-password" ||
+        path === "/choose-username" ||
+        path.startsWith("/admin/login");
+      const oauthInFlight =
+        window.location.hash.includes("access_token=") ||
+        (() => {
+          try { return !!sessionStorage.getItem("post_oauth_redirect"); }
+          catch { return false; }
+        })();
+      if (authPath || oauthInFlight) return;
+
         firedRef.current = true;
 
-        // If we already have a stale-version hint in the URL (?v=...) and the
-        // build STILL doesn't match, the HTML itself is being served stale by a
-        // CDN edge. Route through chunkRecovery's counter so we can't infinite-
-        // loop if the CDN keeps serving the old shell. If the counter is
-        // exhausted, fall back to the manual toast.
+        // If we already have a stale-version hint (?v=… still in the URL, or
+        // we just came back from a cache-buster reload that main.tsx cleaned
+        // up) and the build STILL doesn't match, the HTML itself is being
+        // served stale. Route through chunkRecovery's counter so we can't
+        // infinite-loop. If exhausted, fall back to the manual toast.
         const params = new URLSearchParams(window.location.search);
-        if (params.has("v")) {
+        let recentCachebust = false;
+        try { recentCachebust = sessionStorage.getItem("locus_recent_cachebust") === "1"; }
+        catch { /* ignore */ }
+        if (params.has("v") || recentCachebust) {
           if (!reloadOnce()) {
             callbackRef.current();
           }
