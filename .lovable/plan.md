@@ -1,58 +1,19 @@
-# Fix: emails stuck in `pending`, cron pointing at wrong URL
+## What's happening
 
-## Problem
+Your broadcast UI says "sent" because the broadcast was successfully **enqueued** — but the queue dispatcher then failed to deliver each message with the error **"Emails disabled for this project"**. Every recent broadcast (last 6 attempts to `heyjeetttt@gmail.com`) is sitting in the dead-letter queue with that same error.
 
-`email_send_log` shows the broadcast emails enqueued successfully (`status = 'pending'`), but they never transition to `sent`. The Edge Function returns 200 because enqueueing worked — the actual send happens asynchronously via a cron job.
-
-The `process-email-queue` cron job (jobid 4) is configured to POST to:
-
-```
-https://id-preview--7785818b-...lovable.app/lovable/email/queue/process
-```
-
-That URL is a **TanStack Start server route** — but this project is a **Vite SPA hosted on Cloudflare Pages** (custom domain `lexleaks.com`). That route does not exist. The cron job fires every 5s, gets nothing back, and the queue never drains.
-
-The actual email dispatcher is the deployed Supabase Edge Function `process-email-queue` at:
-
-```
-https://wksqrdinlrgkjnncanui.supabase.co/functions/v1/process-email-queue
-```
+This is **not a credits issue**. The Lovable Emails toggle for this project was off when the dispatcher tried to send. Your domain `one.lexleaks.com` is verified and ready.
 
 ## Fix
 
-Update the `process-email-queue` cron job to POST to the Supabase Edge Function URL instead of the non-existent TanStack route. Keep the same auth (service role key from vault) and same throttling guard.
+1. I've re-enabled Lovable Emails for the project (just now, to be safe).
+2. Send a fresh broadcast test from the admin panel.
+3. The dispatcher cron runs every 5 seconds — within ~10s the new row in `email_send_log` should flip from `pending` to `sent`, and the email should land in your inbox (check spam too).
 
-Migration SQL:
+## Follow-up improvement (optional)
 
-```sql
-SELECT cron.alter_job(
-  job_id := (SELECT jobid FROM cron.job WHERE jobname = 'process-email-queue'),
-  command := $cmd$
-    SELECT CASE
-      WHEN (SELECT retry_after_until FROM public.email_send_state WHERE id = 1) > now()
-        THEN NULL
-      WHEN EXISTS (SELECT 1 FROM pgmq.q_auth_emails LIMIT 1)
-        OR EXISTS (SELECT 1 FROM pgmq.q_transactional_emails LIMIT 1)
-        THEN net.http_post(
-          url := 'https://wksqrdinlrgkjnncanui.supabase.co/functions/v1/process-email-queue',
-          headers := jsonb_build_object(
-            'Content-Type', 'application/json',
-            'Authorization', 'Bearer ' || (
-              SELECT decrypted_secret FROM vault.decrypted_secrets
-              WHERE name = 'email_queue_service_role_key'
-            )
-          ),
-          body := '{}'::jsonb
-        )
-      ELSE NULL
-    END;
-  $cmd$
-);
-```
+The broadcast UI currently reports success on enqueue, not on actual delivery. We can update the admin "Send test to me" / "Send broadcast" flow to:
+- Poll `email_send_log` by `message_id` for ~15s after enqueue
+- Show the real final status (`sent` / `dlq` / `suppressed`) with the error message if it failed
 
-## Verification
-
-1. Wait ~10 seconds for the next cron tick.
-2. Re-query `email_send_log` — the two `pending` rows for `heyjeetttt@gmail.com` should flip to `sent`.
-3. Check inbox.
-4. Trigger a fresh broadcast test to confirm end-to-end.
+Let me know if you want me to wire that up after you confirm the test email arrives.
