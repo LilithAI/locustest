@@ -1,5 +1,56 @@
-import { sendLovableEmail } from 'npm:@lovable.dev/email-js'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+
+const RESEND_GATEWAY = 'https://connector-gateway.lovable.dev/resend/emails'
+
+class ResendError extends Error {
+  status: number
+  retryAfterSeconds: number | null
+  constructor(status: number, message: string, retryAfterSeconds: number | null = null) {
+    super(message)
+    this.status = status
+    this.retryAfterSeconds = retryAfterSeconds
+  }
+}
+
+async function sendViaResend(
+  payload: Record<string, any>,
+  apiKey: string,
+  resendKey: string,
+  fromOverride: string | undefined
+): Promise<void> {
+  const from = fromOverride || payload.from
+  const body: Record<string, any> = {
+    from,
+    to: [payload.to],
+    subject: payload.subject,
+    html: payload.html,
+  }
+  if (payload.text) body.text = payload.text
+  if (payload.unsubscribe_token) {
+    body.headers = {
+      'List-Unsubscribe': `<https://locustest.lovable.app/unsubscribe?token=${payload.unsubscribe_token}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    }
+  }
+  const res = await fetch(RESEND_GATEWAY, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'X-Connection-Api-Key': resendKey,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    const retryAfter = res.headers.get('retry-after')
+    throw new ResendError(
+      res.status,
+      `Resend API ${res.status}: ${text}`,
+      retryAfter ? parseInt(retryAfter, 10) : null
+    )
+  }
+}
 
 const MAX_RETRIES = 5
 const DEFAULT_BATCH_SIZE = 10
