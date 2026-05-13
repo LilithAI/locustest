@@ -1,94 +1,63 @@
-## SEO Enhancement Plan for Locus
+## Goal
 
-The basics are already in place (per-page titles via `usePageMeta`, OG tags, robots.txt, Organization JSON-LD, canonical URLs). The big gaps are: **Google sees the same blank-shell HTML for every route** (SPA limitation), the **sitemap is static and missing 90% of pages**, and there's **no rich structured data** for firms/playbook guides.
+Wrap the entire site in a launch-takeover page that announces Locus going public on **27 May 2026**, while letting you (and beta users who log in) keep building and using Locus behind it.
 
-This plan tackles all three, plus keyword-targeted content tweaks and Google Search Console verification.
+## Behaviour
 
----
+- Every visitor to `locus.legal` lands on the takeover page — regardless of route.
+- Logged-in users see a **dismissible banner** with the same message instead of being blocked, so beta usage continues.
+- Admins are never blocked (login still works at `/admin/login`).
+- A `?preview=1` query param (or hidden `/admin/login` link in the page) bypasses the gate so you can keep iterating on the real site.
+- After 27 May 2026 00:00 IST the gate auto-disables (date check) — site goes back to normal with no redeploy needed.
 
-### Phase 1 — Build-time prerendering (biggest win)
+## The page itself
 
-Add `@prerenderer/rollup-plugin` + `@prerenderer/renderer-puppeteer` to `vite.config.ts`. After `npm run build`, it spins up headless Chrome, visits each route, and writes a real HTML file (`/directory/index.html`, `/playbook/index.html`, etc.) with full content + per-page meta tags baked in.
+Single new route `src/pages/Launch.tsx`, rendered as a takeover overlay (not part of the existing `Layout`):
 
-Routes to prerender:
-- All static pages: `/`, `/waitlist`, `/directory`, `/playbook`, `/resources`, `/tools`, `/tools/cv-analyser`, `/the-bar`, `/the-bar/preview`, `/the-bar/browse`, `/the-bar/leaderboard`, `/opportunities`
-- All playbook guide slugs (read from `src/content/playbook/index.ts`)
-- All firm profile slugs (fetched at build time from Supabase via service-role key)
+1. **Headline**: "Locus is going public on 27 May 2026."
+2. **Live countdown**: D / H / M / S to 27 May 2026 00:00 IST — bold, monospace, the visual centerpiece.
+3. **Body copy**: the exact words you wrote (early users, accounts wiped, level playing field, no NLU tag / surnames, migration window warning, "first ones back through the door").
+4. **Email capture**: single email field → "Notify me when re-signup opens" → stores into a new `launch_notify` table.
+5. **Footer line**: "Re-signup link drops 27 May. Stay sharp." + tiny "Beta user? Sign in" link → `/auth` (so existing users can still get in).
 
-Routes excluded (auth/private/dynamic-only): `/app`, `/auth`, `/admin/*`, `/profile/edit`, `/u/:username`, `/the-bar/challenge/:id`, `/the-bar/history`, `/applications`, `/beta/*`, `/dock-lab`, `/tour-lab`, `/reset-password`, `/choose-username`, `/unsubscribe`.
+Visual style matches the existing brutalist Locus look (black bg, accent border, Sora display font, hard shadows) — consistent with `BetaBanner`.
 
-Cloudflare Pages already supports puppeteer in its Node 20 build environment — no infra change needed.
+## Gating logic
 
-### Phase 2 — Dynamic sitemap generator
+New component `src/components/LaunchGate.tsx` mounted at the top of `App.tsx`, *outside* the router:
 
-Replace `public/sitemap.xml` (currently 7 hardcoded URLs) with a build-time script (`scripts/generate-sitemap.ts`) that runs before `vite build` and writes a fresh `public/sitemap.xml` containing:
+```text
+if (now >= 2026-05-27 IST)        → render <App/> (gate off)
+else if (?preview=1 in URL)        → render <App/>, set sessionStorage bypass
+else if (sessionStorage bypass)    → render <App/>
+else if (path starts with /admin)  → render <App/>  (admins always pass)
+else if (logged-in user session)   → render <App/> + show <LaunchBanner/>
+else                               → render <Launch/>  (full takeover)
+```
 
-- All static routes from Phase 1
-- One entry per published firm (with `lastmod` from `updated_at`)
-- One entry per playbook guide
-- One entry per published opportunity (if you want them indexed)
+Bypass is sticky for the session so you don't have to re-add `?preview=1` on every navigation.
 
-Update `package.json` build script to: `tsx scripts/generate-sitemap.ts && vite build`.
+## Database
 
-### Phase 3 — Per-page meta audit
+One small table for the email capture:
 
-Run through every public page's `usePageMeta()` call and tighten titles + descriptions for keyword targeting:
+- `launch_notify` — fields: `email`, `source` (defaults to "launch_page")
+- RLS: anyone can insert; nobody can read (admins read via service role only)
+- Unique index on `email` so duplicates silently no-op
 
-- `/` — already strong (`Merit-Based Legal Internships in India`)
-- `/directory` — target "law firm directory India" / "top Indian law firms"
-- `/playbook` — target "law student career guide" / "legal internship guide"
-- `/opportunities` — target "legal internships India 2026"
-- `/the-bar` — target "Indian law practice questions" / "bar prep India"
-- `/tools/cv-analyser` — target "law student CV review"
-- Firm profile pages — title pattern: `{Firm Name} — Internships, Salary, PPO Insights`
-- Playbook guide pages — title pattern: `{Guide Title} — Locus Playbook`
+## Files touched
 
-### Phase 4 — Richer structured data (JSON-LD)
+- **New** `src/pages/Launch.tsx` — the takeover page
+- **New** `src/components/LaunchGate.tsx` — the gating wrapper
+- **New** `src/components/LaunchBanner.tsx` — slim banner for logged-in users
+- **Edit** `src/App.tsx` — wrap `<BrowserRouter>` in `<LaunchGate>`
+- **Edit** `src/components/Layout.tsx` — render `<LaunchBanner/>` (replaces or sits next to `BetaBanner`)
+- **Migration** — create `launch_notify` table with RLS
 
-Add to `index.html` (sitewide) alongside the existing Organization block:
-- **WebSite** schema with `potentialAction` SearchAction → enables Google sitelinks search box
-- Update **Organization** to include `logo`, `sameAs` (LinkedIn, Twitter, Instagram if any)
+## Out of scope
 
-Add per-page schemas via a new `usePageMeta` extension (or new `useStructuredData` hook):
-- Playbook guides → **Article** schema (headline, datePublished, author, image)
-- Firm profiles → **Organization** schema (the firm itself) + **BreadcrumbList**
-- Directory → **CollectionPage** + **BreadcrumbList**
-- The Bar → **Quiz** / **LearningResource** schema
+- No changes to existing auth, beta flow, or any other page.
+- No deletion of beta data — that's a manual step for you on 27 May.
+- No SEO/sitemap changes (takeover doesn't need to be indexed; we'll keep current SEO work intact).
 
-### Phase 5 — Internal linking + content cleanup
-
-- Footer: ensure links to `/directory`, `/playbook`, `/the-bar`, `/opportunities`, `/tools` are present (boosts crawl + page-rank flow)
-- Each playbook guide should link to 2-3 related guides
-- Each firm profile should link back to `/directory` and to `/opportunities` filtered by that firm
-- Verify every page has exactly one `<h1>` (the SEO scanner already passed this — keep it that way)
-
-### Phase 6 — Google Search Console + indexing
-
-- Use the Site Verification API to verify `https://locus.legal/` via meta tag
-- Add the site as a Search Console property
-- Submit `https://locus.legal/sitemap.xml` for indexing
-- Result: you can monitor impressions, clicks, indexing errors directly
-
-### Phase 7 — Keyword research check (Semrush)
-
-Before finalizing copy in Phase 3, run Semrush against `locus.legal` and key competitor terms (e.g. "legal internships India", "Indian law firms directory") to confirm the keywords we're targeting actually have search volume. Pivot copy if data shows better terms.
-
----
-
-### Technical notes (for engineering review)
-
-- Stack: Vite + React Router DOM SPA, deployed on Cloudflare Pages (build: `npm install --legacy-peer-deps && npm run build`, output `dist`).
-- Prerenderer requires `puppeteer` as a devDep. Build time will increase by ~30-90s depending on route count.
-- Sitemap script needs Supabase service-role key as a Cloudflare Pages env var (`SUPABASE_SERVICE_ROLE_KEY`).
-- Production domain in `usePageMeta.ts` is `https://locus.legal` — that stays the canonical.
-- `public/_headers` already sets caching; we'll add `Cache-Control: public, max-age=3600` on `/sitemap.xml` and prerendered `*.html`.
-- The current static OG image is hosted on Cloudflare R2 — fine, but consider generating per-firm and per-guide OG images later (not in this plan).
-
-### Estimated impact
-
-- **Prerendering + sitemap**: Google indexes 100+ pages instead of ~7. Most impactful change.
-- **WebSite + SearchAction schema**: Brand searches get a sitelinks search box.
-- **Article + Organization schemas**: Rich snippets in SERPs (image, dates).
-- **Keyword-targeted titles**: Better ranking for the queries you actually want.
-
-Approve and I'll execute phases 1-6 end-to-end. Phase 7 (Semrush) I can run now if you want a keyword sanity-check before we lock copy.
+Approve and I'll build it.

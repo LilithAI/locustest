@@ -1719,6 +1719,27 @@ export type Database = {
           },
         ]
       }
+      launch_notify: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          source?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          source?: string
+        }
+        Relationships: []
+      }
       moots: {
         Row: {
           area_of_law: string | null
