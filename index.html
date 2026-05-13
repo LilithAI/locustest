@@ -132,15 +132,44 @@
       fbq('track', 'PageView');
     </script>
 
-    <!-- Structured Data -->
+    <!-- Structured Data: Organization -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "Organization",
       "name": "Locus",
+      "alternateName": "Locus by LexRoot",
       "url": "https://locus.legal",
+      "logo": "https://locus.legal/favicon.png?v=2",
       "description": "India's legal internship platform that connects law students with firms based on merit, not college name.",
+      "foundingDate": "2025",
+      "areaServed": { "@type": "Country", "name": "India" },
+      "knowsAbout": [
+        "Legal internships in India",
+        "Law firm recruitment",
+        "Indian law student careers",
+        "Bar council registration",
+        "Legal research and writing"
+      ],
       "sameAs": []
+    }
+    </script>
+
+    <!-- Structured Data: WebSite (enables Google sitelinks search box) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Locus",
+      "url": "https://locus.legal",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://locus.legal/directory?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
     }
     </script>
   </head>

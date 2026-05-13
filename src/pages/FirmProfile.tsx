@@ -72,8 +72,47 @@ export default function FirmProfile() {
   }, [slug]);
 
   usePageMeta({
-    title: firm ? `${firm.firm_name} — Firm Intelligence | Locus` : "Firm Intelligence | Locus",
-    description: firm ? `Firm intelligence profile for ${firm.firm_name}.` : "Firm intelligence profile.",
+    title: firm
+      ? `${firm.firm_name} — Internships, Hiring & Insights | Locus`
+      : "Firm Intelligence | Locus",
+    description: firm
+      ? `${firm.firm_name}: practice areas, team, hiring patterns and internship insights for Indian law students. Researched by Locus.`
+      : "Firm intelligence profiles for top Indian law firms.",
+    path: firm ? `/directory/firms/${firm.firm_slug ?? slug}` : "/directory",
+    jsonLd: firm
+      ? [
+          {
+            "@context": "https://schema.org",
+            "@type": "LegalService",
+            name: firm.firm_name,
+            url: firm.website_url ?? `https://locus.legal/directory/firms/${slug}`,
+            description:
+              firm.description ??
+              `${firm.firm_name} — Indian law firm profile on Locus.`,
+            areaServed: { "@type": "Country", name: "India" },
+            mainEntityOfPage: `https://locus.legal/directory/firms/${slug}`,
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: "https://locus.legal/" },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "Directory",
+                item: "https://locus.legal/directory",
+              },
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: firm.firm_name,
+                item: `https://locus.legal/directory/firms/${slug}`,
+              },
+            ],
+          },
+        ]
+      : undefined,
   });
 
   if (loading) {
