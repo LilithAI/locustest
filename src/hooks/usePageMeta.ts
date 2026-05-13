@@ -9,6 +9,12 @@ interface PageMeta {
   description: string;
   path?: string; // e.g. "/directory"
   ogImage?: string;
+  /**
+   * One or more JSON-LD blocks to attach to this page (e.g. Article,
+   * BreadcrumbList, Organization). Replaces previous page-scoped blocks
+   * on every change. Sitewide blocks declared in index.html are untouched.
+   */
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
 }
 
 function setMetaTag(attr: string, key: string, content: string) {
@@ -31,7 +37,27 @@ function setCanonical(url: string) {
   el.setAttribute("href", url);
 }
 
-export function usePageMeta({ title, description, path = "", ogImage }: PageMeta) {
+const PAGE_LD_FLAG = "data-page-jsonld";
+
+function setPageJsonLd(blocks: Record<string, unknown>[] | undefined) {
+  // Remove any previous page-scoped blocks (sitewide blocks in index.html
+  // don't carry the data-page-jsonld attribute, so they're left alone).
+  document.querySelectorAll(`script[${PAGE_LD_FLAG}]`).forEach((n) => n.remove());
+  if (!blocks?.length) return;
+  for (const block of blocks) {
+    const s = document.createElement("script");
+    s.type = "application/ld+json";
+    s.setAttribute(PAGE_LD_FLAG, "");
+    s.text = JSON.stringify(block);
+    document.head.appendChild(s);
+  }
+}
+
+export function usePageMeta({ title, description, path = "", ogImage, jsonLd }: PageMeta) {
+  // Stable string key so changing the schema object identity doesn't re-fire
+  // the effect on every render.
+  const jsonLdKey = jsonLd ? JSON.stringify(jsonLd) : "";
+
   useEffect(() => {
     const fullTitle = title.includes("Locus") ? title : `${title} — Locus`;
     const fullUrl = `${BASE_URL}${path}`;
@@ -55,5 +81,16 @@ export function usePageMeta({ title, description, path = "", ogImage }: PageMeta
     setMetaTag("name", "twitter:title", fullTitle);
     setMetaTag("name", "twitter:description", description);
     setMetaTag("name", "twitter:image", image);
-  }, [title, description, path, ogImage]);
+
+    // Page-scoped structured data
+    const blocks = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : undefined;
+    setPageJsonLd(blocks);
+
+    return () => {
+      // Clean up page-scoped JSON-LD on unmount so SPA navigation doesn't
+      // leave stale Article/Breadcrumb blocks attached to the next page.
+      setPageJsonLd(undefined);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, description, path, ogImage, jsonLdKey]);
 }
