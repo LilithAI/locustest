@@ -54,6 +54,8 @@ import { CommandPaletteProvider } from "@/components/search/useCommandPalette";
 import CommandPalette from "@/components/search/CommandPalette";
 import SearchFab from "@/components/search/SearchFab";
 import ChunkErrorBoundary from "@/components/ChunkErrorBoundary";
+import LaunchGate from "@/components/LaunchGate";
+const Launch = lazy(() => import("./pages/Launch"));
 
 // Lazy-load every non-landing route so the home page ships only what it needs.
 // All importers live in `lib/prefetch.ts` so hover/idle prefetching shares the
@@ -261,58 +263,61 @@ const App = () => {
           <MetaPixelTracker />
           <CommandPaletteProvider>
             <ChunkErrorBoundary>
-              <Suspense fallback={<RouteSkeleton />}>
-                <Routes>
-                  <Route element={<Layout />}>
-                    <Route path="/" element={<Index />} />
-                    <Route path="/app" element={<AppHome />} />
-                    <Route path="/waitlist" element={<Waitlist />} />
-                    <Route path="/directory" element={<Directory />} />
-                    <Route path="/directory/firms/:slug" element={<FirmProfile />} />
-                    <Route path="/demofirminteligence" element={<DemoFirmIntelligence />} />
-                    <Route path="/playbook" element={<Playbook />} />
-                    <Route path="/playbook/:slug" element={<PlaybookGuide />} />
-                    <Route path="/resources" element={<Resources />} />
-                    <Route path="/tools" element={<Tools />} />
-                    <Route path="/tools/cv-analyser" element={<CvAnalyser />} />
-                    <Route path="/the-bar" element={<TheBar />} />
-                    <Route path="/the-bar/preview" element={<TheBarPreview />} />
-                    <Route path="/the-bar/browse" element={<TheBarBrowse />} />
-                    <Route path="/the-bar/challenge/:id" element={<TheBarChallenge />} />
-                    <Route path="/the-bar/history" element={<TheBarHistory />} />
-                    <Route path="/the-bar/leaderboard" element={<TheBarLeaderboard />} />
-                    <Route path="/applications" element={<ApplicationTracker />} />
-                    <Route path="/profile/edit" element={<ProfileEdit />} />
-                    <Route path="/u/:username" element={<PublicProfile />} />
-                    <Route path="/admin" element={<AdminLayout />}>
-                      <Route index element={<AdminDashboard />} />
-                      <Route path="waitlist" element={<AdminWaitlist />} />
-                      <Route path="bar" element={<AdminBar />} />
-                      <Route path="beta" element={<AdminBeta />} />
-                      <Route path="vacancies" element={<Navigate to="/admin/opportunities" replace />} />
-                      <Route path="opportunities" element={<AdminOpportunities />} />
-                      <Route path="firm-suggestions" element={<AdminFirmSuggestions />} />
-                      <Route path="broadcasts" element={<AdminBroadcasts />} />
-                      <Route path="admins" element={<AdminAdmins />} />
-                      <Route path="insights" element={<AdminInsights />} />
-                      <Route path="firm-intelligence" element={<AdminFirmIntelligence />} />
-                      <Route path="firm-intelligence/:slug/edit" element={<AdminFirmEdit />} />
+              <LaunchGate>
+                <Suspense fallback={<RouteSkeleton />}>
+                  <Routes>
+                    <Route element={<Layout />}>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/launch" element={<Launch />} />
+                      <Route path="/app" element={<AppHome />} />
+                      <Route path="/waitlist" element={<Waitlist />} />
+                      <Route path="/directory" element={<Directory />} />
+                      <Route path="/directory/firms/:slug" element={<FirmProfile />} />
+                      <Route path="/demofirminteligence" element={<DemoFirmIntelligence />} />
+                      <Route path="/playbook" element={<Playbook />} />
+                      <Route path="/playbook/:slug" element={<PlaybookGuide />} />
+                      <Route path="/resources" element={<Resources />} />
+                      <Route path="/tools" element={<Tools />} />
+                      <Route path="/tools/cv-analyser" element={<CvAnalyser />} />
+                      <Route path="/the-bar" element={<TheBar />} />
+                      <Route path="/the-bar/preview" element={<TheBarPreview />} />
+                      <Route path="/the-bar/browse" element={<TheBarBrowse />} />
+                      <Route path="/the-bar/challenge/:id" element={<TheBarChallenge />} />
+                      <Route path="/the-bar/history" element={<TheBarHistory />} />
+                      <Route path="/the-bar/leaderboard" element={<TheBarLeaderboard />} />
+                      <Route path="/applications" element={<ApplicationTracker />} />
+                      <Route path="/profile/edit" element={<ProfileEdit />} />
+                      <Route path="/u/:username" element={<PublicProfile />} />
+                      <Route path="/admin" element={<AdminLayout />}>
+                        <Route index element={<AdminDashboard />} />
+                        <Route path="waitlist" element={<AdminWaitlist />} />
+                        <Route path="bar" element={<AdminBar />} />
+                        <Route path="beta" element={<AdminBeta />} />
+                        <Route path="vacancies" element={<Navigate to="/admin/opportunities" replace />} />
+                        <Route path="opportunities" element={<AdminOpportunities />} />
+                        <Route path="firm-suggestions" element={<AdminFirmSuggestions />} />
+                        <Route path="broadcasts" element={<AdminBroadcasts />} />
+                        <Route path="admins" element={<AdminAdmins />} />
+                        <Route path="insights" element={<AdminInsights />} />
+                        <Route path="firm-intelligence" element={<AdminFirmIntelligence />} />
+                        <Route path="firm-intelligence/:slug/edit" element={<AdminFirmEdit />} />
+                      </Route>
+                      <Route path="/vacancies" element={<Navigate to="/opportunities" replace />} />
+                      <Route path="/opportunities" element={<Opportunities />} />
+                      <Route path="/opportunities-preview" element={<Navigate to="/opportunities" replace />} />
+                      <Route path="/dock-lab" element={<DockLab />} />
+                      <Route path="/tour-lab" element={<TourLab />} />
                     </Route>
-                    <Route path="/vacancies" element={<Navigate to="/opportunities" replace />} />
-                    <Route path="/opportunities" element={<Opportunities />} />
-                    <Route path="/opportunities-preview" element={<Navigate to="/opportunities" replace />} />
-                    <Route path="/dock-lab" element={<DockLab />} />
-                    <Route path="/tour-lab" element={<TourLab />} />
-                  </Route>
-                  <Route path="/auth" element={<Auth />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/choose-username" element={<ChooseUsername />} />
-                  <Route path="/beta" element={<BetaChecklist />} />
-                  <Route path="/beta/round-2" element={<BetaRound2 />} />
-                  <Route path="/unsubscribe" element={<Unsubscribe />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
+                    <Route path="/auth" element={<Auth />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
+                    <Route path="/choose-username" element={<ChooseUsername />} />
+                    <Route path="/beta" element={<BetaChecklist />} />
+                    <Route path="/beta/round-2" element={<BetaRound2 />} />
+                    <Route path="/unsubscribe" element={<Unsubscribe />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
+              </LaunchGate>
             </ChunkErrorBoundary>
             <CommandPalette />
             <SearchFab />
