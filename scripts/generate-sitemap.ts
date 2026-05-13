@@ -69,7 +69,7 @@ async function fetchFirmSlugs(): Promise<{ slug: string; updated_at?: string }[]
   // Cap at 5000 to keep build snappy.
   while (from < 5000) {
     const res = await fetch(
-      `${url}/rest/v1/firm_profiles?select=slug,updated_at&slug=not.is.null&order=updated_at.desc.nullslast&limit=${pageSize}&offset=${from}`,
+      `${url}/rest/v1/firm_profiles?select=firm_slug,updated_at&firm_slug=not.is.null&order=updated_at.desc.nullslast&limit=${pageSize}&offset=${from}`,
       {
         headers: {
           apikey: key,
@@ -81,9 +81,9 @@ async function fetchFirmSlugs(): Promise<{ slug: string; updated_at?: string }[]
       console.warn(`[sitemap] firm_profiles fetch ${res.status} — skipping firms`);
       return all;
     }
-    const rows = (await res.json()) as { slug: string; updated_at: string | null }[];
+    const rows = (await res.json()) as { firm_slug: string; updated_at: string | null }[];
     if (!rows.length) break;
-    all.push(...rows.map((r) => ({ slug: r.slug, updated_at: r.updated_at ?? undefined })));
+    all.push(...rows.map((r) => ({ slug: r.firm_slug, updated_at: r.updated_at ?? undefined })));
     if (rows.length < pageSize) break;
     from += pageSize;
   }
