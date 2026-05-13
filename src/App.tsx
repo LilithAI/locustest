@@ -54,6 +54,8 @@ import { CommandPaletteProvider } from "@/components/search/useCommandPalette";
 import CommandPalette from "@/components/search/CommandPalette";
 import SearchFab from "@/components/search/SearchFab";
 import ChunkErrorBoundary from "@/components/ChunkErrorBoundary";
+import LaunchGate from "@/components/LaunchGate";
+const Launch = lazy(() => import("./pages/Launch"));
 
 // Lazy-load every non-landing route so the home page ships only what it needs.
 // All importers live in `lib/prefetch.ts` so hover/idle prefetching shares the
