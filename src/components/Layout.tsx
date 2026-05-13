@@ -24,6 +24,7 @@ export default function Layout() {
   return (
     <AppTour>
       <div className="min-h-screen">
+        <LaunchBanner />
         <BetaBanner />
         <Navbar />
         <Outlet />
