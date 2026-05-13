@@ -54,11 +54,13 @@ function readPlaybookSlugs(): string[] {
 }
 
 async function fetchFirmSlugs(): Promise<{ slug: string; updated_at?: string }[]> {
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key =
+  const strip = (v?: string) => v?.replace(/^["']|["']$/g, "");
+  const url = strip(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL);
+  const key = strip(
     process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    process.env.SUPABASE_ANON_KEY;
+      process.env.SUPABASE_PUBLISHABLE_KEY ||
+      process.env.SUPABASE_ANON_KEY,
+  );
   if (!url || !key) {
     console.warn("[sitemap] Supabase env vars missing — skipping firm rows");
     return [];
