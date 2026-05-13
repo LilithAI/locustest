@@ -42,6 +42,42 @@ export default function PlaybookGuide() {
       ? `Read ${guide.title} on Locus — a practical guide for ${guide.audience.toLowerCase()}.`
       : undefined,
     path: slug ? `/playbook/${slug}` : "/playbook",
+    jsonLd: guide
+      ? [
+          {
+            "@context": "https://schema.org",
+            "@type": "Article",
+            headline: guide.title,
+            description: `A practical Locus Playbook guide for ${guide.audience.toLowerCase()}.`,
+            author: { "@type": "Organization", name: "Locus" },
+            publisher: {
+              "@type": "Organization",
+              name: "Locus",
+              logo: {
+                "@type": "ImageObject",
+                url: "https://locus.legal/favicon.png?v=2",
+              },
+            },
+            mainEntityOfPage: `https://locus.legal/playbook/${slug}`,
+            articleSection: guide.stage,
+            audience: { "@type": "Audience", audienceType: guide.audience },
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: "https://locus.legal/" },
+              { "@type": "ListItem", position: 2, name: "Playbook", item: "https://locus.legal/playbook" },
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: guide.title,
+                item: `https://locus.legal/playbook/${slug}`,
+              },
+            ],
+          },
+        ]
+      : undefined,
   });
 
   // Mark as started when opened (logged-in only)
